@@ -8,6 +8,8 @@
 
 **技术栈：** C# 14、.NET 10 LTS、WPF、Windows App SDK 2.4.0、Microsoft.Data.Sqlite 10.0.11、H.NotifyIcon.Wpf 2.4.1、xUnit.net v3 4.0.0、Microsoft.NET.Test.Sdk 18.9.0、coverlet.collector 10.0.1。
 
+> **阶段进度（2026-09-07）：** 本阶段已完成任务 6 的 Core C/A 呈现路由、Windows App SDK 静默通知，以及任务 7 的皮肤 manifest/透明 PNG 校验、staging 原子导入、透明可拖动 PetWindow 和语言气泡 Presenter；对应细化步骤见 docs/superpowers/plans/2026-09-07-presentation-and-pet-plan.md。主应用组合、托盘菜单、日志页面、开机启动和手工多显示器/全屏验收仍按本 MVP 计划后续推进；第二阶段 AI 生成工作室保持隔离，不在本阶段实现。
+
 ---
 
 ## 文件结构
@@ -41,7 +43,8 @@ F:\Health\
       Reminders/ReminderStateMachine.cs
       WorkTracking/WorkTrackingModels.cs
       WorkTracking/WorkSessionAccumulator.cs
-      Presentation/IReminderPresenter.cs
+      Presentation/ReminderPresentationModels.cs
+  Presentation/ReminderPresentationRouter.cs
       Storage/IEventRepository.cs
     IkuyoPet.Infrastructure/
       IkuyoPet.Infrastructure.csproj
@@ -57,6 +60,7 @@ F:\Health\
       PetReminderPresenter.cs
       Skins/SkinManifest.cs
       Skins/SkinPackageValidator.cs
+      Skins/SkinPackageImporter.cs
   tests/
     IkuyoPet.Core.Tests/
       IkuyoPet.Core.Tests.csproj

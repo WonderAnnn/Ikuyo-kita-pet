@@ -45,7 +45,7 @@ tests/IkuyoPet.Infrastructure.Tests/Skins/
 - 创建：`src/IkuyoPet.Core/Presentation/ReminderPresentationRouter.cs`
 - 创建：`tests/IkuyoPet.Core.Tests/Presentation/ReminderPresentationRouterTests.cs`
 
-- [ ] **步骤 1：编写失败的路由测试**
+- [x] **步骤 1：编写失败的路由测试**
 
 ```csharp
 using IkuyoPet.Core.Presentation;
@@ -99,7 +99,7 @@ public sealed class ReminderPresentationRouterTests
 }
 ```
 
-- [ ] **步骤 2：运行测试确认因契约缺失而失败**
+- [x] **步骤 2：运行测试确认因契约缺失而失败**
 
 运行：
 
@@ -109,7 +109,7 @@ G:\IkuyoPetDev\dotnet\dotnet.exe run --project G:\testPet\tests\IkuyoPet.Core.Te
 
 预期：FAIL，编译器报告 `ReminderDue`、`IReminderPresenter` 或 `ReminderPresentationRouter` 未定义。
 
-- [ ] **步骤 3：实现最小契约与路由**
+- [x] **步骤 3：实现最小契约与路由**
 
 在 `ReminderPresentationModels.cs` 中定义：
 
@@ -160,7 +160,7 @@ public sealed class ReminderPresentationRouter(
 }
 ```
 
-- [ ] **步骤 4：运行 Core 全量测试确认通过**
+- [x] **步骤 4：运行 Core 全量测试确认通过**
 
 运行：
 
@@ -173,7 +173,7 @@ G:\IkuyoPetDev\dotnet\dotnet.exe run --project G:\testPet\tests\IkuyoPet.Core.Te
 
 预期：Core 测试全部通过，输出无编译警告和失败。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```powershell
 git -C G:\testPet add src\IkuyoPet.Core\Presentation tests\IkuyoPet.Core.Tests\Presentation
@@ -186,7 +186,7 @@ git -C G:\testPet commit -m "feat: route reminders to pet or notification"
 - 创建：`src/IkuyoPet.Infrastructure/Windows/WindowsNotificationPresenter.cs`
 - 修改：`src/IkuyoPet.Infrastructure/IkuyoPet.Infrastructure.csproj`（确认 Windows App SDK 引用保持集中管理）
 
-- [ ] **步骤 1：先写通知序列化测试夹具**
+- [x] **步骤 1：先写通知序列化测试夹具**
 
 在 `tests/IkuyoPet.Infrastructure.Tests/Windows/WindowsNotificationPresenterTests.cs` 创建一个记录通知请求的 `INotificationSink` 测试替身，断言一次请求包含原始 `EventId`、`Complete`、`Snooze`、`Skip` 三个动作和相同显示文案。测试只验证 Presenter 发出的请求模型，不启动系统通知服务。
 
@@ -207,7 +207,7 @@ Assert.Equal(due.EventId, sink.LastRequest!.EventId);
 Assert.Equal([ReminderAction.Complete, ReminderAction.Snooze, ReminderAction.Skip], sink.LastRequest.Actions);
 ```
 
-- [ ] **步骤 2：运行测试确认通知适配器和请求模型缺失而失败**
+- [x] **步骤 2：运行测试确认通知适配器和请求模型缺失而失败**
 
 运行：
 
@@ -217,7 +217,7 @@ G:\IkuyoPetDev\dotnet\dotnet.exe run --project G:\testPet\tests\IkuyoPet.Infrast
 
 预期：FAIL，编译器报告 `WindowsNotificationPresenter` 或通知请求模型未定义。
 
-- [ ] **步骤 3：实现请求模型、可测试 Sink 和 Windows App SDK 适配**
+- [x] **步骤 3：实现请求模型、可测试 Sink 和 Windows App SDK 适配**
 
 在 `WindowsNotificationPresenter.cs` 中保持三层边界：
 
@@ -250,7 +250,7 @@ public sealed class WindowsNotificationPresenter(INotificationSink sink) : IRemi
 
 另建 Windows App SDK Sink（同文件私有实现或独立内部类）：应用启动时注册 `AppNotificationManager`，用 `AppNotificationBuilder` 添加标题、正文和三个按钮；按钮参数只携带事件 ID 与动作枚举。激活回调解析参数后调用统一的提醒动作处理器，不打开主窗口、不保存窗口内容。无法注册时抛出可诊断异常，让路由器执行 C 渠道降级。
 
-- [ ] **步骤 4：运行基础设施测试并验证取消令牌**
+- [x] **步骤 4：运行基础设施测试并验证取消令牌**
 
 运行：
 
@@ -260,7 +260,7 @@ G:\IkuyoPetDev\dotnet\dotnet.exe run --project G:\testPet\tests\IkuyoPet.Infrast
 
 预期：通知请求测试与已有 SQLite、工作跟踪测试全部通过；取消令牌能在 Sink 调用前终止操作。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```powershell
 git -C G:\testPet add src\IkuyoPet.Infrastructure\Windows\WindowsNotificationPresenter.cs tests\IkuyoPet.Infrastructure.Tests\Windows\WindowsNotificationPresenterTests.cs
@@ -280,7 +280,7 @@ git -C G:\testPet commit -m "feat: add native Windows reminder notifications"
 
 校验边界固定为：`canvasWidth` 和 `canvasHeight` 均为 32–2048 像素，`fps` 为 1–30；必需文件为 `manifest.json`、`idle.png`、`remind.png`；每张 PNG 至少有一个 alpha 小于 255 的像素。
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 测试创建临时目录，覆盖四类行为：
 
@@ -370,7 +370,7 @@ public void AcceptsValidTransparentPackageAndReturnsManifest()
         encoder.Save(stream);
     }
 
-- [ ] **步骤 2：运行测试确认校验器缺失而失败**
+- [x] **步骤 2：运行测试确认校验器缺失而失败**
 
 运行：
 
@@ -380,7 +380,7 @@ G:\IkuyoPetDev\dotnet\dotnet.exe run --project G:\testPet\tests\IkuyoPet.Infrast
 
 预期：FAIL，编译器报告 `SkinManifest` 或 `SkinPackageValidator` 未定义。
 
-- [ ] **步骤 3：实现强类型 manifest 与明确错误结果**
+- [x] **步骤 3：实现强类型 manifest 与明确错误结果**
 
 ```csharp
 public sealed record SkinManifest(
@@ -401,7 +401,7 @@ public sealed record SkinValidationResult(
 
 `SkinPackageValidator.Validate(string packageDirectory)` 使用 `JsonSerializer.Deserialize<SkinManifest>`、`BitmapDecoder` 和 `FormatConvertedBitmap` 检查文件、字段、尺寸、帧率及 alpha；错误结果列出具体相对路径或字段，不移动、不删除、不改变当前皮肤。
 
-- [ ] **步骤 4：运行皮肤测试确认通过并检查 JSON Schema**
+- [x] **步骤 4：运行皮肤测试确认通过并检查 JSON Schema**
 
 运行：
 
@@ -411,7 +411,7 @@ G:\IkuyoPetDev\dotnet\dotnet.exe run --project G:\testPet\tests\IkuyoPet.Infrast
 
 预期：皮肤测试全部通过；`schemas/skin-manifest.schema.json` 与 C# 字段同名，限制尺寸和帧率范围。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```powershell
 git -C G:\testPet add src\IkuyoPet.Pet\Skins tests\IkuyoPet.Infrastructure.Tests\Skins schemas\skin-manifest.schema.json
@@ -424,7 +424,7 @@ git -C G:\testPet commit -m "feat: validate transparent pet skin packages"
 - 创建：`src/IkuyoPet.Pet/Skins/SkinPackageImporter.cs`
 - 修改：`tests/IkuyoPet.Infrastructure.Tests/Skins/SkinPackageValidatorTests.cs`
 
-- [ ] **步骤 1：编写原子导入失败测试**
+- [x] **步骤 1：编写原子导入失败测试**
 以下测试加入同一个 SkinPackageValidatorTests 类，并复用 7.1 的 CreatePackageDirectory、WriteManifest、WritePng 辅助方法；CreateInvalidPackage 和 CreateValidPackage 定义如下：
 
     private static string CreateInvalidPackage()
@@ -511,11 +511,11 @@ public async Task ImportWithExistingIdAndVersionDoesNotOverwriteExistingFiles()
 }
 ```
 
-- [ ] **步骤 2：运行测试确认导入器缺失而失败**
+- [x] **步骤 2：运行测试确认导入器缺失而失败**
 
 运行同一 Infrastructure 测试命令，预期编译器报告 `SkinPackageImporter` 未定义或导入结果缺失。
 
-- [ ] **步骤 3：实现 staging、校验、移动和结果对象**
+- [x] **步骤 3：实现 staging、校验、移动和结果对象**
 
 ```csharp
 public sealed record SkinImportResult(
@@ -535,11 +535,11 @@ public sealed class SkinPackageImporter(
 
 实现顺序固定为：创建 `skinsRoot/.staging/<guid>` → 复制源目录文件 → 在 staging 目录完成完整校验 → 选择 `<id>/<version>`，冲突时追加短 GUID → `Directory.Move` 到最终目录 → 返回安装路径。任何异常都删除本次 staging 目录并保留已有目录。
 
-- [ ] **步骤 4：运行所有皮肤测试确认通过**
+- [x] **步骤 4：运行所有皮肤测试确认通过**
 
 预期：有效包可导入，无效包不改变已有皮肤，同 ID/版本不会覆盖原文件。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```powershell
 git -C G:\testPet add src\IkuyoPet.Pet\Skins\SkinPackageImporter.cs tests\IkuyoPet.Infrastructure.Tests\Skins\SkinPackageValidatorTests.cs
@@ -554,7 +554,7 @@ git -C G:\testPet commit -m "feat: import pet skins atomically"
 - 创建：`src/IkuyoPet.Pet/PetReminderPresenter.cs`
 - 修改：`src/IkuyoPet.Pet/IkuyoPet.Pet.csproj`（保持 `UseWPF=true`）
 
-- [ ] **步骤 1：编写 Presenter 的最小行为测试**
+- [x] **步骤 1：编写 Presenter 的最小行为测试**
 
 使用注入的 IPetWindowHost 测试替身，断言 ShowAsync 传入完整 ReminderDue，关闭动作调用隐藏而不调用主窗口。测试不启动 WPF Dispatcher。生产代码先定义：
 
@@ -607,11 +607,11 @@ git -C G:\testPet commit -m "feat: import pet skins atomically"
         Assert.Equal("water", host.LastDue!.Kind);
     }
 
-- [ ] **步骤 2：运行测试确认 Pet Presenter 缺失而失败**
+- [x] **步骤 2：运行测试确认 Pet Presenter 缺失而失败**
 
 运行 Core/Infrastructure 全量测试命令，预期编译器报告 `PetReminderPresenter` 或 `IPetWindowHost` 未定义。
 
-- [ ] **步骤 3：实现透明窗口和箭头语言气泡**
+- [x] **步骤 3：实现透明窗口和箭头语言气泡**
 
 `PetWindow.xaml` 必须包含：
 
@@ -635,7 +635,7 @@ git -C G:\testPet commit -m "feat: import pet skins atomically"
 
 `PetReminderPresenter` 实现 `IReminderPresenter`，将提醒内容、动作标签和对应颜文字作为同一气泡文本：提醒态不添加颜文字；完成使用 `ദ്ദി˶>𖥦<)✧`，搁置使用 `(,,•́ . •̀,,)`，跳过或重试结束使用 `ʕ.•᷅ࡇ•᷄.ʔ`。每段最多一个颜文字并放在句尾。
 
-- [ ] **步骤 4：运行自动测试并进行手工窗口验收**
+- [ ] **步骤 4：完成手工窗口验收（自动验证已在任务 7.4 执行）**
 
 自动运行：
 
@@ -649,7 +649,7 @@ G:\IkuyoPetDev\dotnet\dotnet.exe test --solution G:\testPet\IkuyoPet.sln --confi
 
 手工验收：普通桌面右下角显示约 160 px 透明桌宠；拖动不抢焦点；箭头指向角色；句内动作可点击；关闭桌宠时路由到通知；锁屏、全屏、演示状态隐藏。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```powershell
 git -C G:\testPet add src\IkuyoPet.Pet tests\IkuyoPet.Infrastructure.Tests
@@ -662,7 +662,7 @@ git -C G:\testPet commit -m "feat: add transparent draggable pet presenter"
 - 修改：`docs/superpowers/plans/2026-09-07-presentation-and-pet-plan.md`
 - 修改：`docs/superpowers/plans/2026-09-06-ikuyo-pet-mvp.md`
 
-- [ ] **步骤 1：运行全量构建、测试和空白检查**
+- [x] **步骤 1：运行全量构建、测试和空白检查**
 
 ```powershell
 $env:Path='G:\IkuyoPetDev\dotnet;' + $env:Path
@@ -676,11 +676,11 @@ git -C G:\testPet status --short
 
 预期：构建 0 警告、0 错误；所有 Core/Infrastructure 测试通过；工作树只包含计划复选框变更或为空。
 
-- [ ] **步骤 2：核对规格覆盖度**
+- [x] **步骤 2：核对规格覆盖度**
 
 逐项核对 `2026-09-07-presentation-and-pet-design.md`：C/A 渠道路由、箭头气泡、句内加粗动作、B 语气、颜文字映射、皮肤原子导入、锁屏/全屏隐藏、隐私边界和医生可配置数值均必须能在任务 6–7 中找到对应实现或验收项。
 
-- [ ] **步骤 3：Commit 计划进度**
+- [x] **步骤 3：Commit 计划进度**
 
 ```powershell
 git -C G:\testPet add docs\superpowers\plans\2026-09-07-presentation-and-pet-plan.md docs\superpowers\plans\2026-09-06-ikuyo-pet-mvp.md
