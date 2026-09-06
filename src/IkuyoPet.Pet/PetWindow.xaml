@@ -1,0 +1,67 @@
+<Window x:Class="IkuyoPet.Pet.PetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Ikuyo Pet"
+        Width="380"
+        Height="300"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Focusable="False"
+        SnapsToDevicePixels="True">
+    <Canvas x:Name="RootCanvas"
+            Width="380"
+            Height="300"
+            Background="Transparent">
+        <Border x:Name="Bubble"
+                Canvas.Left="12"
+                Canvas.Top="8"
+                Width="356"
+                MinHeight="88"
+                Padding="18,14"
+                Background="#FDFEFF"
+                BorderBrush="#E7DDF6"
+                BorderThickness="1"
+                CornerRadius="18"
+                SnapsToDevicePixels="True">
+            <TextBlock x:Name="ReminderText"
+                       Foreground="#332B3D"
+                       FontSize="16"
+                       LineHeight="24"
+                       TextWrapping="Wrap" />
+        </Border>
+        <Polygon x:Name="BubbleArrow"
+                 Canvas.Left="178"
+                 Canvas.Top="88"
+                 Fill="#FDFEFF"
+                 Stroke="#E7DDF6"
+                 StrokeThickness="1"
+                 Points="0,0 22,0 6,16" />
+        <Border x:Name="PetHitArea"
+                Canvas.Left="112"
+                Canvas.Top="104"
+                Width="156"
+                Height="156"
+                Background="Transparent"
+                MouseLeftButtonDown="PetHitArea_OnMouseLeftButtonDown">
+            <Grid>
+                <TextBlock x:Name="PetPlaceholder"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="112"
+                           Text="☕"
+                           Foreground="#F28BB2"
+                           FontFamily="Segoe UI Emoji" />
+                <Image x:Name="PetImage"
+                       Width="156"
+                       Height="156"
+                       Stretch="Uniform"
+                       Visibility="Collapsed" />
+            </Grid>
+        </Border>
+    </Canvas>
+</Window>

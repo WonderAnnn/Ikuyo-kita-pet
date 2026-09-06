@@ -1,0 +1,150 @@
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Documents;
+using IkuyoPet.Core.Reminders;
+
+namespace IkuyoPet.Pet;
+
+public sealed partial class PetWindow : Window, IPetWindowHost
+{
+    private bool hasPosition;
+
+    public PetWindow()
+    {
+        InitializeComponent();
+        Loaded += (_, _) => ClampToWorkArea();
+    }
+
+    public bool OpenedMainWindow => false;
+
+    public event EventHandler<PetReminderActionInvokedEventArgs>? ActionInvoked;
+
+    public Task ShowAsync(PetReminderView view, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.InvokeAsync(() => ShowCore(view), System.Windows.Threading.DispatcherPriority.Normal, cancellationToken)
+                .Task;
+        }
+
+        ShowCore(view);
+        return Task.CompletedTask;
+    }
+
+    public new void Hide()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(Hide);
+            return;
+        }
+
+        base.Hide();
+    }
+
+    public void SetSkinImage(string imagePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imagePath);
+        if (!File.Exists(imagePath))
+        {
+            throw new FileNotFoundException("Skin image was not found.", imagePath);
+        }
+
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.UriSource = new Uri(Path.GetFullPath(imagePath), UriKind.Absolute);
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.EndInit();
+        image.Freeze();
+        PetImage.Source = image;
+        PetImage.Visibility = Visibility.Visible;
+        PetPlaceholder.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowCore(PetReminderView view)
+    {
+        RenderView(view);
+        if (!hasPosition)
+        {
+            var workArea = SystemParameters.WorkArea;
+            Left = Math.Max(workArea.Left, workArea.Right - Width - 24);
+            Top = Math.Max(workArea.Top, workArea.Bottom - Height - 24);
+            hasPosition = true;
+        }
+
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        ClampToWorkArea();
+    }
+
+    private void RenderView(PetReminderView view)
+    {
+        ReminderText.Inlines.Clear();
+        ReminderText.Inlines.Add(new Run(view.Text));
+
+        foreach (var action in view.Actions)
+        {
+            ReminderText.Inlines.Add(new Run("  ·  "));
+            var link = new Hyperlink(new Run(action.Label))
+            {
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(194, 86, 146)),
+                TextDecorations = null,
+                Tag = action.Action,
+            };
+            link.Click += ActionLink_OnClick;
+            ReminderText.Inlines.Add(link);
+        }
+    }
+
+    private void ActionLink_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Hyperlink { Tag: ReminderAction action })
+        {
+            var eventId = (ReminderText.DataContext as PetReminderView)?.Due.EventId ?? Guid.Empty;
+            ActionInvoked?.Invoke(
+                this,
+                new PetReminderActionInvokedEventArgs(eventId, action));
+        }
+
+        e.Handled = true;
+    }
+
+    private void PetHitArea_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState == MouseButtonState.Pressed)
+        {
+            DragMove();
+            e.Handled = true;
+        }
+    }
+
+    private void ClampToWorkArea()
+    {
+        var workArea = SystemParameters.WorkArea;
+        Left = Math.Clamp(Left, workArea.Left, Math.Max(workArea.Left, workArea.Right - ActualWidth));
+        Top = Math.Clamp(Top, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - ActualHeight));
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        PetImage.Source = null;
+        base.OnClosed(e);
+    }
+}
+
+public sealed class PetReminderActionInvokedEventArgs(Guid eventId, ReminderAction action) : EventArgs
+{
+    public Guid EventId { get; } = eventId;
+    public ReminderAction Action { get; } = action;
+}
