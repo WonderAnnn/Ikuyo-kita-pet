@@ -86,7 +86,7 @@ F:\Health\
 - 创建：`IkuyoPet.sln`
 - 创建：四个 `src/*/*.csproj` 和两个 `tests/*/*.csproj`
 
-- [ ] **步骤 1：写入固定工具目录配置**
+- [x] **步骤 1：写入固定工具目录配置**
 
 ```powershell
 @{
@@ -97,11 +97,11 @@ F:\Health\
 }
 ```
 
-- [ ] **步骤 2：实现开发环境安装脚本**
+- [x] **步骤 2：实现开发环境安装脚本**
 
 `eng/setup-dev.ps1` 必须先创建上述目录，再从 `https://dot.net/v1/dotnet-install.ps1` 下载官方脚本并以 `-Channel 10.0 -InstallDir G:\IkuyoPetDev\dotnet` 安装 SDK；随后把用户级 `NUGET_PACKAGES` 设置为 `G:\IkuyoPetDev\nuget\packages`。SQLite CLI 仅作为人工查看数据库的可选工具，应用运行不依赖它。
 
-- [ ] **步骤 3：实现环境验证脚本**
+- [x] **步骤 3：实现环境验证脚本**
 
 ```powershell
 $config = Import-PowerShellDataFile "$PSScriptRoot\toolchain.psd1"
@@ -111,7 +111,7 @@ if (-not (Test-Path -LiteralPath $dotnet)) { throw 'Ikuyo Pet .NET SDK is not in
 if ($LASTEXITCODE -ne 0) { throw 'Ikuyo Pet .NET SDK verification failed.' }
 ```
 
-- [ ] **步骤 4：创建项目并建立单向引用**
+- [x] **步骤 4：创建项目并建立单向引用**
 
 ```powershell
 & G:\IkuyoPetDev\dotnet\dotnet.exe new sln --name IkuyoPet
@@ -123,7 +123,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Ikuyo Pet .NET SDK verification failed.' }
 
 允许的引用方向：`App -> Core, Infrastructure, Pet`；`Infrastructure -> Core`；`Pet -> Core`；Core 不引用任何其他项目。
 
-- [ ] **步骤 5：验证骨架并提交**
+- [x] **步骤 5：验证骨架并提交**
 
 运行：`G:\IkuyoPetDev\dotnet\dotnet.exe build IkuyoPet.sln --no-restore`
 
@@ -138,7 +138,7 @@ Commit：`chore: scaffold Ikuyo Pet solution`
 - 创建：`src/IkuyoPet.Core/Reminders/ReminderModels.cs`
 - 创建：`src/IkuyoPet.Core/Reminders/ReminderStateMachine.cs`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 ```csharp
 [Fact]
@@ -154,13 +154,13 @@ public void NoResponseOnThirdAttemptEndsAsUnanswered()
 }
 ```
 
-- [ ] **步骤 2：运行测试并确认因类型尚不存在而失败**
+- [x] **步骤 2：运行测试并确认因类型尚不存在而失败**
 
 运行：`dotnet test tests/IkuyoPet.Core.Tests --filter NoResponseOnThirdAttemptEndsAsUnanswered`
 
 预期：FAIL，编译器报告 `ReminderStateMachine` 未定义。
 
-- [ ] **步骤 3：实现最小状态模型和转换**
+- [x] **步骤 3：实现最小状态模型和转换**
 
 ```csharp
 public sealed class ReminderStateMachine(int maxAttempts)
@@ -177,13 +177,13 @@ public sealed class ReminderStateMachine(int maxAttempts)
 }
 ```
 
-- [ ] **步骤 4：增加完成、稍后、跳过和前两次无响应测试并运行全部 Core 测试**
+- [x] **步骤 4：增加完成、稍后、跳过和前两次无响应测试并运行全部 Core 测试**
 
 运行：`dotnet test tests/IkuyoPet.Core.Tests`
 
 预期：全部 PASS，0 failed。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 Commit：`feat: add reminder state machine`
 
@@ -194,7 +194,7 @@ Commit：`feat: add reminder state machine`
 - 创建：`src/IkuyoPet.Core/WorkTracking/WorkTrackingModels.cs`
 - 创建：`src/IkuyoPet.Core/WorkTracking/WorkSessionAccumulator.cs`
 
-- [ ] **步骤 1：编写有效与无效采样测试**
+- [x] **步骤 1：编写有效与无效采样测试**
 
 ```csharp
 [Fact]
@@ -210,13 +210,13 @@ public void CountsOnlyWhitelistedForegroundUnlockedAndRecentlyActiveSamples()
 }
 ```
 
-- [ ] **步骤 2：运行并确认测试因累计器缺失而失败**
+- [x] **步骤 2：运行并确认测试因累计器缺失而失败**
 
 运行：`dotnet test tests/IkuyoPet.Core.Tests --filter WorkSessionAccumulatorTests`
 
 预期：FAIL，编译器报告 `WorkSessionAccumulator` 未定义。
 
-- [ ] **步骤 3：实现最小累计器**
+- [x] **步骤 3：实现最小累计器**
 
 ```csharp
 public sealed class WorkSessionAccumulator(TimeSpan idleLimit)
@@ -233,13 +233,13 @@ public sealed class WorkSessionAccumulator(TimeSpan idleLimit)
 }
 ```
 
-- [ ] **步骤 4：增加锁屏、空闲达到 5 分钟、跨应用和系统时钟倒退测试**
+- [x] **步骤 4：增加锁屏、空闲达到 5 分钟、跨应用和系统时钟倒退测试**
 
 运行：`dotnet test tests/IkuyoPet.Core.Tests`
 
 预期：全部 PASS；负时间差不累计。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 Commit：`feat: calculate foreground active work time`
 
@@ -251,7 +251,7 @@ Commit：`feat: calculate foreground active work time`
 - 创建：`src/IkuyoPet.Infrastructure/Storage/SqliteEventRepository.cs`
 - 创建：`tests/IkuyoPet.Infrastructure.Tests/Storage/SqliteEventRepositoryTests.cs`
 
-- [ ] **步骤 1：写入内存 SQLite 的失败测试**
+- [x] **步骤 1：写入内存 SQLite 的失败测试**
 
 ```csharp
 [Fact]
@@ -269,23 +269,23 @@ public async Task SavesAndReadsReminderOutcomeWithoutWindowContent()
 }
 ```
 
-- [ ] **步骤 2：运行并确认仓储缺失导致失败**
+- [x] **步骤 2：运行并确认仓储缺失导致失败**
 
 运行：`dotnet test tests/IkuyoPet.Infrastructure.Tests --filter SavesAndReadsReminderOutcomeWithoutWindowContent`
 
 预期：FAIL，编译器报告仓储类型未定义。
 
-- [ ] **步骤 3：创建五张表与参数化写入**
+- [x] **步骤 3：创建五张表与参数化写入**
 
 迁移脚本必须创建 `reminder_rules`、`reminder_events`、`tracked_apps`、`work_sessions` 和 `app_settings`，开启 WAL 与外键，并对时间范围查询建立索引。所有值通过 `SqliteParameter` 绑定。
 
-- [ ] **步骤 4：增加重复迁移、日期过滤、取消令牌与不保存窗口标题的测试**
+- [x] **步骤 4：增加重复迁移、日期过滤、取消令牌与不保存窗口标题的测试**
 
 运行：`dotnet test tests/IkuyoPet.Infrastructure.Tests`
 
 预期：全部 PASS；迁移连续执行两次不报错。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 Commit：`feat: persist reminder and work events in sqlite`
 

@@ -15,6 +15,35 @@ public enum ReminderOutcome
     Snoozed,
     Skipped,
     Unanswered,
+    Suppressed,
+}
+
+public sealed record ReminderEvent(
+    Guid Id,
+    Guid? RuleId,
+    DateTimeOffset ScheduledAt,
+    DateTimeOffset? DisplayedAt,
+    string Channel,
+    ReminderOutcome Outcome,
+    DateTimeOffset? ActionAt,
+    int RetryIndex,
+    string? SuppressedReason,
+    DateTimeOffset CreatedAt)
+{
+    public static ReminderEvent Completed(
+        Guid id,
+        DateTimeOffset scheduledAt,
+        string channel) => new(
+            id,
+            null,
+            scheduledAt,
+            scheduledAt,
+            channel,
+            ReminderOutcome.Completed,
+            scheduledAt,
+            0,
+            null,
+            scheduledAt);
 }
 
 public sealed record ReminderState(int Attempt)
