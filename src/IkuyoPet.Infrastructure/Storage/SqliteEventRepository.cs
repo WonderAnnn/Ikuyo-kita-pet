@@ -1,6 +1,7 @@
 using System.Globalization;
 using IkuyoPet.Core.Reminders;
 using IkuyoPet.Core.Storage;
+using IkuyoPet.Core.WorkTracking;
 using Microsoft.Data.Sqlite;
 
 namespace IkuyoPet.Infrastructure.Storage;
@@ -39,6 +40,58 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task AppendWorkSessionAsync(
+        WorkSession session,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+        await using var upsert = connection.CreateCommand();
+        upsert.Transaction = transaction;
+        upsert.CommandText = """
+            INSERT INTO tracked_apps
+                (process_name, display_name, enabled, created_at, updated_at)
+            VALUES
+                ($process_name, $display_name, 1, $created_at, $updated_at)
+            ON CONFLICT(process_name) DO UPDATE SET
+                display_name = excluded.display_name,
+                enabled = 1,
+                updated_at = excluded.updated_at;
+            """;
+        AddText(upsert, "$process_name", session.ProcessName);
+        AddText(upsert, "$display_name", session.DisplayName);
+        AddText(upsert, "$created_at", ToDbTimestamp(session.StartedAt));
+        AddText(upsert, "$updated_at", ToDbTimestamp(session.EndedAt));
+        await upsert.ExecuteNonQueryAsync(cancellationToken);
+
+        await using var findApp = connection.CreateCommand();
+        findApp.Transaction = transaction;
+        findApp.CommandText = "SELECT id FROM tracked_apps WHERE process_name = $process_name;";
+        AddText(findApp, "$process_name", session.ProcessName);
+        var trackedAppId = (long)(await findApp.ExecuteScalarAsync(cancellationToken))!;
+
+        await using var insertSession = connection.CreateCommand();
+        insertSession.Transaction = transaction;
+        insertSession.CommandText = """
+            INSERT INTO work_sessions
+                (tracked_app_id, started_at, ended_at, active_seconds, end_reason)
+            VALUES
+                ($tracked_app_id, $started_at, $ended_at, $active_seconds, $end_reason);
+            """;
+        insertSession.Parameters.AddWithValue("$tracked_app_id", trackedAppId);
+        AddText(insertSession, "$started_at", ToDbTimestamp(session.StartedAt));
+        AddText(insertSession, "$ended_at", ToDbTimestamp(session.EndedAt));
+        insertSession.Parameters.AddWithValue("$active_seconds", session.ActiveSeconds);
+        AddText(insertSession, "$end_reason", session.EndReason);
+        await insertSession.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
     public async Task<IReadOnlyList<ReminderEvent>> ReadReminderEventsAsync(
         DateOnly day,
         CancellationToken cancellationToken)

@@ -297,25 +297,25 @@ Commit：`feat: persist reminder and work events in sqlite`
 - 创建：`src/IkuyoPet.Infrastructure/Windows/WorkTrackingService.cs`
 - 创建：`tests/IkuyoPet.Infrastructure.Tests/Windows/WorkTrackingServiceTests.cs`
 
-- [ ] **步骤 1：用伪探针编写失败测试**
+- [x] **步骤 1：用伪探针编写失败测试**
 
 测试固定返回 `pycharm64`、未锁屏、空闲 1 分钟，推进两次 5 秒采样，断言仓储只写入 5 秒有效会话。
 
-- [ ] **步骤 2：运行并确认服务缺失导致失败**
+- [x] **步骤 2：运行并确认服务缺失导致失败**
 
 运行：`dotnet test tests/IkuyoPet.Infrastructure.Tests --filter WorkTrackingServiceTests`
 
-- [ ] **步骤 3：实现 Windows API 适配**
+- [x] **步骤 3：实现 Windows API 适配**
 
 使用 `GetForegroundWindow`、`GetWindowThreadProcessId`、`GetLastInputInfo` 和会话通知读取进程、空闲与锁屏状态。不得调用窗口文本 API，不得截屏，不得安装键盘或鼠标钩子。
 
-- [ ] **步骤 4：验证 5 秒采样、切换应用、锁屏和空闲停止**
+- [x] **步骤 4：验证 5 秒采样、切换应用、锁屏和空闲停止**
 
 运行：`dotnet test tests/IkuyoPet.Infrastructure.Tests`
 
 预期：全部 PASS。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 Commit：`feat: track whitelisted foreground activity`
 

@@ -1,5 +1,6 @@
 using System.Globalization;
 using IkuyoPet.Core.Reminders;
+using IkuyoPet.Core.WorkTracking;
 using IkuyoPet.Infrastructure.Storage;
 using Microsoft.Data.Sqlite;
 using Xunit;
@@ -27,6 +28,39 @@ public sealed class SqliteEventRepositoryTests
         Assert.Equal(ReminderOutcome.Completed, stored[0].Outcome);
     }
 
+    [Fact]
+    public async Task SavesWorkSessionAgainstTrackedApplication()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var start = new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.FromHours(8));
+        var session = new WorkSession(
+            Guid.NewGuid(),
+            "pycharm64",
+            "PyCharm",
+            start,
+            start.AddSeconds(5),
+            5,
+            "stopped");
+
+        await repository.AppendWorkSessionAsync(session, TestContext.Current.CancellationToken);
+
+        await using var connection = new SqliteConnection(database.ConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT a.process_name, a.display_name, s.active_seconds, s.end_reason
+            FROM work_sessions AS s
+            INNER JOIN tracked_apps AS a ON a.id = s.tracked_app_id;
+            """;
+        await using var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("pycharm64", reader.GetString(0));
+        Assert.Equal("PyCharm", reader.GetString(1));
+        Assert.Equal(5, reader.GetInt32(2));
+        Assert.Equal("stopped", reader.GetString(3));
+    }
     [Fact]
     public async Task MigrationIsIdempotentAndCreatesTheFiveLocalTables()
     {

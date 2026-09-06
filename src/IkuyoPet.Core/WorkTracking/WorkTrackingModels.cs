@@ -9,3 +9,12 @@ public sealed record ActivitySample(
     bool IsLocked,
     TimeSpan IdleTime,
     DateTimeOffset ObservedAt);
+
+public sealed record WorkSession(
+    Guid Id,
+    string ProcessName,
+    string DisplayName,
+    DateTimeOffset StartedAt,
+    DateTimeOffset EndedAt,
+    int ActiveSeconds,
+    string EndReason);
