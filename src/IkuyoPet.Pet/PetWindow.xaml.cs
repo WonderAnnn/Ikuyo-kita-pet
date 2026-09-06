@@ -12,6 +12,7 @@ namespace IkuyoPet.Pet;
 public sealed partial class PetWindow : Window, IPetWindowHost
 {
     private bool hasPosition;
+    private PetReminderView? currentView;
 
     public PetWindow()
     {
@@ -70,6 +71,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 
     private void ShowCore(PetReminderView view)
     {
+        currentView = view;
         RenderView(view);
         if (!hasPosition)
         {
@@ -147,4 +149,15 @@ public sealed class PetReminderActionInvokedEventArgs(Guid eventId, ReminderActi
 {
     public Guid EventId { get; } = eventId;
     public ReminderAction Action { get; } = action;
+}
+
+public static class PetReminderActionEventFactory
+{
+    public static PetReminderActionInvokedEventArgs Create(
+        PetReminderView view,
+        ReminderAction action)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        return new PetReminderActionInvokedEventArgs(view.Due.EventId, action);
+    }
 }

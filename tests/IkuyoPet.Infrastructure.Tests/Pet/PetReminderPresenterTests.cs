@@ -22,6 +22,17 @@ public sealed class PetReminderPresenterTests
         Assert.Equal(due.Message, host.LastView.Text);
     }
 
+    [Fact]
+    public void ActionEventRetainsReminderEventId()
+    {
+        var due = new ReminderDue(Guid.NewGuid(), "activity", "起来活动一下吧～", []);
+        var view = new PetReminderView(due, due.Message, []);
+
+        var actionEvent = PetReminderActionEventFactory.Create(view, ReminderAction.Complete);
+
+        Assert.Equal(due.EventId, actionEvent.EventId);
+        Assert.Equal(ReminderAction.Complete, actionEvent.Action);
+    }
     [Theory]
     [InlineData(ReminderAction.Complete, "ദ്ദി˶>𖥦<)✧")]
     [InlineData(ReminderAction.Snooze, "(,,•́ . •̀,,)")]
