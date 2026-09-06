@@ -15,4 +15,4 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet restore IkuyoPet.sln
       - run: dotnet build IkuyoPet.sln --configuration Release --no-restore -warnaserror
-      - run: dotnet test IkuyoPet.sln --configuration Release --no-build --collect:"XPlat Code Coverage"
+      - run: dotnet test --solution IkuyoPet.sln --configuration Release --no-build
