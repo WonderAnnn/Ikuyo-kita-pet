@@ -1,0 +1,12 @@
+.superpowers/brainstorm/
+bin/
+obj/
+.vs/
+*.user
+*.suo
+publish/
+data/
+*.db
+*.db-shm
+*.db-wal
+local-skins/
