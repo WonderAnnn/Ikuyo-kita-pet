@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>IkuyoPet.Core</RootNamespace>
+    <AssemblyName>IkuyoPet.Core</AssemblyName>
+  </PropertyGroup>
+</Project>

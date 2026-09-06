@@ -1,0 +1,22 @@
+<Window x:Class="IkuyoPet.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Ikuyo Pet"
+        Width="960"
+        Height="640"
+        MinWidth="720"
+        MinHeight="480"
+        WindowStartupLocation="CenterScreen">
+    <Grid Background="#FFF4F8FD">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock HorizontalAlignment="Center"
+                       FontSize="34"
+                       FontWeight="SemiBold"
+                       Foreground="#FF263247"
+                       Text="Ikuyo Pet" />
+            <TextBlock Margin="0,12,0,0"
+                       Foreground="#FF68778D"
+                       Text="项目骨架已建立，功能将按实现计划逐步加入。" />
+        </StackPanel>
+    </Grid>
+</Window>

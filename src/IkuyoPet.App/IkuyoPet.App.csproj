@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>IkuyoPet.App</RootNamespace>
+    <AssemblyName>IkuyoPet</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IkuyoPet.Core\IkuyoPet.Core.csproj" />
+    <ProjectReference Include="..\IkuyoPet.Infrastructure\IkuyoPet.Infrastructure.csproj" />
+    <ProjectReference Include="..\IkuyoPet.Pet\IkuyoPet.Pet.csproj" />
+    <PackageReference Include="H.NotifyIcon.Wpf" />
+  </ItemGroup>
+</Project>

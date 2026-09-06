@@ -10,3 +10,6 @@ data/
 *.db-shm
 *.db-wal
 local-skins/
+.idea/
+TestResults/
+eng/toolchain.local.psd1

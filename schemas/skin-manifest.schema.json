@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ikuyo-pet.local/schemas/skin-manifest.schema.json",
+  "title": "Ikuyo Pet skin manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "version", "author", "license", "canvasWidth", "canvasHeight", "fps"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "author": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "license": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "canvasWidth": { "type": "integer", "minimum": 64, "maximum": 2048 },
+    "canvasHeight": { "type": "integer", "minimum": 64, "maximum": 2048 },
+    "fps": { "type": "integer", "minimum": 1, "maximum": 30 }
+  }
+}
