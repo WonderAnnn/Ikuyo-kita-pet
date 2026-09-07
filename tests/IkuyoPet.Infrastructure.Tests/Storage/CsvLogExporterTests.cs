@@ -78,18 +78,43 @@ public sealed class CsvLogExporterTests
         };
 
         var path = Path.Combine(Path.GetTempPath(), $"ikuyo-pet-csv-{Guid.NewGuid():N}.csv");
-        await using (var stream = File.Create(path))
+        try
         {
-            await CsvLogExporter.ExportAsync(rows, stream, TestContext.Current.CancellationToken);
+            await using (var stream = File.Create(path))
+            {
+                await CsvLogExporter.ExportAsync(rows, stream, TestContext.Current.CancellationToken);
+            }
+
+            var bytes = await File.ReadAllBytesAsync(path, TestContext.Current.CancellationToken);
+            Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF);
+
+            var text = await File.ReadAllTextAsync(path, Encoding.UTF8, TestContext.Current.CancellationToken);
+            Assert.EndsWith("\r\n", text);
+            Assert.Contains("activity", text);
+            Assert.Contains("稍后再提醒", text);
         }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
 
-        var bytes = await File.ReadAllBytesAsync(path, TestContext.Current.CancellationToken);
-        Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF);
+    [Fact]
+    public async Task HonorsCancellationBeforeWritingAnything()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await using var stream = new MemoryStream();
 
-        var text = await File.ReadAllTextAsync(path, Encoding.UTF8, TestContext.Current.CancellationToken);
-        Assert.EndsWith("\r\n", text);
-        Assert.Contains("activity", text);
-        Assert.Contains("稍后再提醒", text);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            CsvLogExporter.ExportAsync(
+                [new CsvLogRow(new DateOnly(2026, 9, 6), new TimeOnly(10, 20, 30), "water", "pet", "completed", "ok")],
+                stream,
+                cancellation.Token));
+
+        Assert.Equal(0, stream.Length);
     }
 }
-

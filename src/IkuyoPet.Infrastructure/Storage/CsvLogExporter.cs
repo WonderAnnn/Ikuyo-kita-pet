@@ -20,21 +20,10 @@ public static class CsvLogExporter
         ArgumentNullException.ThrowIfNull(rows);
 
         var builder = new StringBuilder();
-        builder.Append(Header).Append("\r\n");
+        AppendHeader(builder);
         foreach (var row in rows)
         {
-            builder.Append(Escape(row.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)))
-                .Append(',')
-                .Append(Escape(row.Time.ToString("HH:mm:ss", CultureInfo.InvariantCulture)))
-                .Append(',')
-                .Append(Escape(row.Type))
-                .Append(',')
-                .Append(Escape(row.Channel))
-                .Append(',')
-                .Append(Escape(row.Action))
-                .Append(',')
-                .Append(Escape(row.Note))
-                .Append("\r\n");
+            AppendRow(builder, row);
         }
 
         return builder.ToString();
@@ -57,8 +46,41 @@ public static class CsvLogExporter
             NewLine = "\r\n",
         };
 
-        await writer.WriteAsync(Serialize(rows).AsMemory(), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await writer.WriteAsync(Header.AsMemory(), cancellationToken);
+        await writer.WriteAsync("\r\n".AsMemory(), cancellationToken);
+
+        foreach (var row in rows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await writer.WriteAsync(FormatRow(row).AsMemory(), cancellationToken);
+            await writer.WriteAsync("\r\n".AsMemory(), cancellationToken);
+        }
+
         await writer.FlushAsync(cancellationToken);
+    }
+
+    private static void AppendHeader(StringBuilder builder) =>
+        builder.Append(Header).Append("\r\n");
+
+    private static void AppendRow(StringBuilder builder, CsvLogRow row) =>
+        builder.Append(FormatRow(row)).Append("\r\n");
+
+    private static string FormatRow(CsvLogRow row)
+    {
+        var builder = new StringBuilder();
+        builder.Append(Escape(row.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)))
+            .Append(',')
+            .Append(Escape(row.Time.ToString("HH:mm:ss", CultureInfo.InvariantCulture)))
+            .Append(',')
+            .Append(Escape(row.Type))
+            .Append(',')
+            .Append(Escape(row.Channel))
+            .Append(',')
+            .Append(Escape(row.Action))
+            .Append(',')
+            .Append(Escape(row.Note));
+        return builder.ToString();
     }
 
     private static string Escape(string? value)
@@ -70,6 +92,6 @@ public static class CsvLogExporter
             return text;
         }
 
-        return "\"" + text.Replace("\"", "\"\"") + "\"";
+        return '"' + text.Replace("\"", "\"\"") + '"';
     }
 }
