@@ -454,6 +454,89 @@ public sealed class SqliteEventRepositoryTests
         Assert.DoesNotContain("window_content", columns);
     }
 
+    [Fact]
+    public async Task ReadsReminderRuleWithDailyGoalAndQuietHoursRoundTrip()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var rule = new ReminderRule(
+            Guid.NewGuid(),
+            "hydration",
+            "喝点水",
+            new TimeOnly(8, 30),
+            new TimeOnly(22, 0),
+            30,
+            true)
+        {
+            DailyGoal = 8,
+            QuietHours = new QuietHours(new TimeOnly(23, 0), new TimeOnly(7, 0), true),
+        };
+
+        await repository.UpsertReminderRuleAsync(rule, TestContext.Current.CancellationToken);
+        var stored = Assert.Single(await repository.ReadReminderRulesAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(rule.Id, stored.Id);
+        Assert.Equal(rule.Type, stored.Type);
+        Assert.Equal(rule.Message, stored.Message);
+        Assert.Equal(rule.StartLocalTime, stored.StartLocalTime);
+        Assert.Equal(rule.EndLocalTime, stored.EndLocalTime);
+        Assert.Equal(rule.IntervalMinutes, stored.IntervalMinutes);
+        Assert.True(stored.Enabled);
+        Assert.Equal(8, stored.DailyGoal);
+        Assert.Equal(new QuietHours(new TimeOnly(23, 0), new TimeOnly(7, 0), true), stored.QuietHours);
+    }
+
+    [Fact]
+    public async Task ReadsEnabledTrackedApplicationsWithoutSensitiveFields()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+
+        await repository.UpsertTrackedApplicationAsync(
+            new TrackedApplication("pycharm64", "PyCharm", true),
+            TestContext.Current.CancellationToken);
+        await repository.UpsertTrackedApplicationAsync(
+            new TrackedApplication("code", "Visual Studio Code", false),
+            TestContext.Current.CancellationToken);
+
+        var stored = await repository.ReadTrackedApplicationsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(stored, item => item.ProcessName == "pycharm64" && item.Enabled);
+        Assert.Contains(stored, item => item.ProcessName == "code" && !item.Enabled);
+    }
+
+    [Fact]
+    public async Task ReminderAndWorkSessionSchemasStayFreeOfPrivacyColumns()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        await new DatabaseMigrator(database.ConnectionString).MigrateAsync(TestContext.Current.CancellationToken);
+
+        await using var connection = new SqliteConnection(database.ConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+        static async Task<List<string>> GetColumnsAsync(SqliteConnection connection, string table)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"PRAGMA table_info({table});";
+            var columns = new List<string>();
+            await using var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+            while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+            {
+                columns.Add(reader.GetString(1));
+            }
+
+            return columns;
+        }
+
+        var reminderColumns = await GetColumnsAsync(connection, "reminder_events");
+        var sessionColumns = await GetColumnsAsync(connection, "work_sessions");
+
+        foreach (var column in new[] { "window_title", "window_content", "keyboard_input", "mouse_path", "screenshot", "sleep", "medical" })
+        {
+            Assert.DoesNotContain(column, reminderColumns, StringComparer.OrdinalIgnoreCase);
+            Assert.DoesNotContain(column, sessionColumns, StringComparer.OrdinalIgnoreCase);
+        }
+    }
     private static DateTimeOffset LocalAt(int year, int month, int day, int hour, int minute)
     {
         var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Unspecified);
@@ -517,3 +600,4 @@ public sealed class SqliteEventRepositoryTests
         public ValueTask DisposeAsync() => _connection.DisposeAsync();
     }
 }
+
