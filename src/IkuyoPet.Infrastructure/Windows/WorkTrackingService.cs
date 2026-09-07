@@ -42,9 +42,12 @@ public sealed class WorkTrackingService
             var elapsed = current.ObservedAt - previous.ObservedAt;
             _activeSeconds = checked(_activeSeconds + (int)Math.Floor(elapsed.TotalSeconds));
         }
-        else if (_sessionStartedAt is not null)
+        else if (_sessionStartedAt is not null && _previous is { } lastCounted)
         {
-            await FlushAsync(current.ObservedAt, GetEndReason(_previous, current), cancellationToken);
+            await FlushAsync(
+                lastCounted.ObservedAt,
+                GetEndReason(lastCounted, current),
+                cancellationToken);
         }
 
         _previous = current;

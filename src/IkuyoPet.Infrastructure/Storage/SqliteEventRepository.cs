@@ -6,7 +6,9 @@ using Microsoft.Data.Sqlite;
 
 namespace IkuyoPet.Infrastructure.Storage;
 
-public sealed class SqliteEventRepository(string connectionString) : IEventRepository
+public sealed class SqliteEventRepository(
+    string connectionString,
+    TimeZoneInfo? timeZone = null) : IEventRepository
 {
     public async Task AppendReminderAsync(
         ReminderEvent item,
@@ -340,13 +342,14 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
     private static TimeOnly ParseLocalTime(string value) =>
         TimeOnly.Parse(value, CultureInfo.InvariantCulture);
 
-    private static (DateTimeOffset Start, DateTimeOffset End) GetUtcDayBounds(DateOnly day)
+    private (DateTimeOffset Start, DateTimeOffset End) GetUtcDayBounds(DateOnly day)
     {
+        var effectiveTimeZone = timeZone ?? TimeZoneInfo.Local;
         var localStart = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
         var localEnd = day.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
         return (
-            new DateTimeOffset(localStart, TimeZoneInfo.Local.GetUtcOffset(localStart)).ToUniversalTime(),
-            new DateTimeOffset(localEnd, TimeZoneInfo.Local.GetUtcOffset(localEnd)).ToUniversalTime());
+            new DateTimeOffset(localStart, effectiveTimeZone.GetUtcOffset(localStart)).ToUniversalTime(),
+            new DateTimeOffset(localEnd, effectiveTimeZone.GetUtcOffset(localEnd)).ToUniversalTime());
     }
 
     private static string ToDbOutcome(ReminderOutcome outcome) => outcome switch

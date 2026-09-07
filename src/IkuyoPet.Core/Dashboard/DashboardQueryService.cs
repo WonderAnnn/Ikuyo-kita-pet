@@ -3,7 +3,9 @@ using IkuyoPet.Core.Storage;
 
 namespace IkuyoPet.Core.Dashboard;
 
-public sealed class DashboardQueryService(IEventRepository repository)
+public sealed class DashboardQueryService(
+    IEventRepository repository,
+    TimeZoneInfo? timeZone = null)
 {
     public async Task<DashboardSnapshot> GetAsync(
         DateOnly day,
@@ -35,7 +37,7 @@ public sealed class DashboardQueryService(IEventRepository repository)
             Count(reminderEvents, ReminderOutcome.Snoozed),
             Count(reminderEvents, ReminderOutcome.Skipped),
             Count(reminderEvents, ReminderOutcome.Unanswered),
-            CalculateWorkTime(day, workSessions));
+            CalculateWorkTime(day, workSessions, timeZone ?? TimeZoneInfo.Local));
     }
 
     private static int Count(
@@ -51,16 +53,17 @@ public sealed class DashboardQueryService(IEventRepository repository)
 
     private static TimeSpan CalculateWorkTime(
         DateOnly day,
-        IReadOnlyList<WorkTracking.WorkSession> workSessions)
+        IReadOnlyList<WorkTracking.WorkSession> workSessions,
+        TimeZoneInfo timeZone)
     {
         var localStart = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
         var localEnd = day.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
         var dayStart = new DateTimeOffset(
             localStart,
-            TimeZoneInfo.Local.GetUtcOffset(localStart)).ToUniversalTime();
+            timeZone.GetUtcOffset(localStart)).ToUniversalTime();
         var dayEnd = new DateTimeOffset(
             localEnd,
-            TimeZoneInfo.Local.GetUtcOffset(localEnd)).ToUniversalTime();
+            timeZone.GetUtcOffset(localEnd)).ToUniversalTime();
         decimal totalTicks = 0;
 
         foreach (var session in workSessions)

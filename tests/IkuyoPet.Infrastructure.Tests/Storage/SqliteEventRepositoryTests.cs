@@ -182,6 +182,53 @@ public sealed class SqliteEventRepositoryTests
         Assert.Equal(session.Id, Assert.Single(secondDay).Id);
     }
 
+    [Theory]
+    [InlineData(2026, 3, 8, 23)]
+    [InlineData(2026, 11, 1, 25)]
+    public async Task ReadsOnlySessionsIntersectingInjectedDstDay(
+        int year,
+        int month,
+        int dayOfMonth,
+        int expectedHours)
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var zone = CreateEasternTimeZone();
+        var repository = new SqliteEventRepository(database.ConnectionString, zone);
+        var day = new DateOnly(year, month, dayOfMonth);
+        var start = AtStartOfDay(day, zone);
+        var end = AtStartOfDay(day.AddDays(1), zone);
+        var requested = new WorkSession(
+            Guid.NewGuid(),
+            "pycharm64",
+            "PyCharm",
+            start,
+            end,
+            expectedHours * 60 * 60,
+            "stopped");
+        var before = requested with
+        {
+            Id = Guid.NewGuid(),
+            StartedAt = start.AddMinutes(-1),
+            EndedAt = start,
+            ActiveSeconds = 60,
+        };
+        var after = requested with
+        {
+            Id = Guid.NewGuid(),
+            StartedAt = end,
+            EndedAt = end.AddMinutes(1),
+            ActiveSeconds = 60,
+        };
+
+        await repository.AppendWorkSessionAsync(before, TestContext.Current.CancellationToken);
+        await repository.AppendWorkSessionAsync(requested, TestContext.Current.CancellationToken);
+        await repository.AppendWorkSessionAsync(after, TestContext.Current.CancellationToken);
+        var stored = await repository.ReadWorkSessionsAsync(day, TestContext.Current.CancellationToken);
+
+        Assert.Equal(requested.Id, Assert.Single(stored).Id);
+        Assert.Equal(TimeSpan.FromHours(expectedHours), requested.EndedAt - requested.StartedAt);
+    }
+
     [Fact]
     public async Task RejectsDuplicateWorkSessionDomainId()
     {
@@ -378,6 +425,39 @@ public sealed class SqliteEventRepositoryTests
     {
         var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Unspecified);
         return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+    }
+
+    private static DateTimeOffset AtStartOfDay(DateOnly day, TimeZoneInfo zone)
+    {
+        var local = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        return new DateTimeOffset(local, zone.GetUtcOffset(local));
+    }
+
+    private static TimeZoneInfo CreateEasternTimeZone()
+    {
+        var daylightStart = TimeZoneInfo.TransitionTime.CreateFloatingDateRule(
+            new DateTime(1, 1, 1, 2, 0, 0),
+            3,
+            2,
+            DayOfWeek.Sunday);
+        var daylightEnd = TimeZoneInfo.TransitionTime.CreateFloatingDateRule(
+            new DateTime(1, 1, 1, 2, 0, 0),
+            11,
+            1,
+            DayOfWeek.Sunday);
+        var adjustment = TimeZoneInfo.AdjustmentRule.CreateAdjustmentRule(
+            new DateTime(2020, 1, 1),
+            new DateTime(2030, 12, 31),
+            TimeSpan.FromHours(1),
+            daylightStart,
+            daylightEnd);
+        return TimeZoneInfo.CreateCustomTimeZone(
+            "IkuyoPet-Test-Eastern",
+            TimeSpan.FromHours(-5),
+            "IkuyoPet Test Eastern",
+            "IkuyoPet Test Eastern Standard",
+            "IkuyoPet Test Eastern Daylight",
+            [adjustment]);
     }
     private sealed class TestDatabase : IAsyncDisposable
     {

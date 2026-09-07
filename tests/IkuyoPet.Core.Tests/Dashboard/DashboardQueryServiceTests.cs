@@ -147,6 +147,36 @@ public sealed class DashboardQueryServiceTests
         Assert.Equal(["first", "second"], snapshot.Timeline.Select(item => item.Channel));
     }
 
+    [Theory]
+    [InlineData(2026, 3, 8, 23)]
+    [InlineData(2026, 11, 1, 25)]
+    public async Task UsesInjectedTimeZoneForDstDayLength(
+        int year,
+        int month,
+        int dayOfMonth,
+        int expectedHours)
+    {
+        var zone = CreateEasternTimeZone();
+        var day = new DateOnly(year, month, dayOfMonth);
+        var start = AtStartOfDay(day, zone);
+        var end = AtStartOfDay(day.AddDays(1), zone);
+        var session = new WorkSession(
+            Guid.NewGuid(),
+            "pycharm64",
+            "PyCharm",
+            start,
+            end,
+            expectedHours * 60 * 60,
+            "stopped");
+        var service = new DashboardQueryService(
+            new StubEventRepository(workSessions: [session]),
+            zone);
+
+        var snapshot = await service.GetAsync(day, TestContext.Current.CancellationToken);
+
+        Assert.Equal(TimeSpan.FromHours(expectedHours), snapshot.WorkTime);
+    }
+
     private static ReminderEvent CreateEvent(
         Guid ruleId,
         DateTimeOffset scheduledAt,
@@ -178,6 +208,39 @@ public sealed class DashboardQueryServiceTests
     {
         var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Unspecified);
         return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+    }
+
+    private static DateTimeOffset AtStartOfDay(DateOnly day, TimeZoneInfo zone)
+    {
+        var local = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        return new DateTimeOffset(local, zone.GetUtcOffset(local));
+    }
+
+    private static TimeZoneInfo CreateEasternTimeZone()
+    {
+        var daylightStart = TimeZoneInfo.TransitionTime.CreateFloatingDateRule(
+            new DateTime(1, 1, 1, 2, 0, 0),
+            3,
+            2,
+            DayOfWeek.Sunday);
+        var daylightEnd = TimeZoneInfo.TransitionTime.CreateFloatingDateRule(
+            new DateTime(1, 1, 1, 2, 0, 0),
+            11,
+            1,
+            DayOfWeek.Sunday);
+        var adjustment = TimeZoneInfo.AdjustmentRule.CreateAdjustmentRule(
+            new DateTime(2020, 1, 1),
+            new DateTime(2030, 12, 31),
+            TimeSpan.FromHours(1),
+            daylightStart,
+            daylightEnd);
+        return TimeZoneInfo.CreateCustomTimeZone(
+            "IkuyoPet-Test-Eastern",
+            TimeSpan.FromHours(-5),
+            "IkuyoPet Test Eastern",
+            "IkuyoPet Test Eastern Standard",
+            "IkuyoPet Test Eastern Daylight",
+            [adjustment]);
     }
 
     private sealed class StubEventRepository(

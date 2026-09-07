@@ -1,3 +1,4 @@
+using IkuyoPet.Core.Dashboard;
 using IkuyoPet.Core.Reminders;
 using IkuyoPet.Core.WorkTracking;
 using IkuyoPet.Core.Storage;
@@ -68,6 +69,46 @@ public sealed class WorkTrackingServiceTests
         var session = Assert.Single(repository.Sessions);
         Assert.Equal(5, session.ActiveSeconds);
         Assert.Equal("idle", session.EndReason);
+    }
+
+    [Fact]
+    public async Task InvalidTailEndsAtLastCountedSampleAndAddsNothingToNextDay()
+    {
+        var zone = TimeZoneInfo.CreateCustomTimeZone(
+            "IkuyoPet-Test-UTC+08-WorkTracking",
+            TimeSpan.FromHours(8),
+            "IkuyoPet Test UTC+08",
+            "IkuyoPet Test UTC+08");
+        var repository = await RunAsync(
+            new ActivitySample(
+                "pycharm64",
+                true,
+                false,
+                TimeSpan.FromMinutes(1),
+                new DateTimeOffset(2026, 9, 6, 23, 59, 45, TimeSpan.FromHours(8))),
+            new ActivitySample(
+                "pycharm64",
+                true,
+                false,
+                TimeSpan.FromMinutes(1),
+                new DateTimeOffset(2026, 9, 6, 23, 59, 50, TimeSpan.FromHours(8))),
+            new ActivitySample(
+                "pycharm64",
+                true,
+                true,
+                TimeSpan.Zero,
+                new DateTimeOffset(2026, 9, 7, 0, 0, 5, TimeSpan.FromHours(8))));
+        var session = Assert.Single(repository.Sessions);
+        var dashboard = new DashboardQueryService(repository, zone);
+
+        var nextDay = await dashboard.GetAsync(
+            new DateOnly(2026, 9, 7),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 6, 23, 59, 50, TimeSpan.FromHours(8)),
+            session.EndedAt);
+        Assert.Equal(TimeSpan.Zero, nextDay.WorkTime);
     }
 
     private static async Task<RecordingRepository> RunAsync(params ActivitySample[] samples)

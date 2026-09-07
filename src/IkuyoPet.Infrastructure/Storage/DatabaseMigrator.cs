@@ -3,36 +3,57 @@ using Microsoft.Data.Sqlite;
 
 namespace IkuyoPet.Infrastructure.Storage;
 
-public sealed class DatabaseMigrator(string connectionString)
+public sealed class DatabaseMigrator
 {
     private static readonly ConcurrentDictionary<string, Lazy<Task>> Migrations =
         new(StringComparer.Ordinal);
+    private readonly string _migrationKey;
+    private readonly Func<Task> _migrateCoreAsync;
+
+    public DatabaseMigrator(string connectionString)
+        : this(connectionString, () => MigrateCoreAsync(connectionString))
+    {
+    }
+
+    internal DatabaseMigrator(string connectionString, Func<Task> migrateCoreAsync)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        ArgumentNullException.ThrowIfNull(migrateCoreAsync);
+        _migrationKey = GetMigrationKey(connectionString);
+        _migrateCoreAsync = migrateCoreAsync;
+    }
 
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var migration = Migrations.GetOrAdd(
-            connectionString,
-            static value => new Lazy<Task>(
-                () => MigrateCoreAsync(value),
-                LazyThreadSafetyMode.ExecutionAndPublication));
-        var migrationTask = migration.Value;
+            _migrationKey,
+            _ => CreateMigration(_migrationKey, _migrateCoreAsync));
+        await migration.Value.WaitAsync(cancellationToken);
+    }
 
+    private static Lazy<Task> CreateMigration(string key, Func<Task> migrateCoreAsync)
+    {
+        Lazy<Task>? migration = null;
+        migration = new Lazy<Task>(
+            () => RunMigrationAsync(key, migration!, migrateCoreAsync),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        return migration;
+    }
+
+    private static async Task RunMigrationAsync(
+        string key,
+        Lazy<Task> migration,
+        Func<Task> migrateCoreAsync)
+    {
         try
         {
-            await migrationTask.WaitAsync(cancellationToken);
+            await migrateCoreAsync();
         }
         catch
         {
-            if (migrationTask.IsFaulted || migrationTask.IsCanceled)
-            {
-                if (Migrations.TryGetValue(connectionString, out var cached) &&
-                    ReferenceEquals(cached, migration))
-                {
-                    Migrations.TryRemove(connectionString, out _);
-                }
-            }
-
+            ((ICollection<KeyValuePair<string, Lazy<Task>>>)Migrations)
+                .Remove(new KeyValuePair<string, Lazy<Task>>(key, migration));
             throw;
         }
     }
@@ -44,7 +65,8 @@ public sealed class DatabaseMigrator(string connectionString)
 
         await ExecuteAsync(connection, "PRAGMA foreign_keys = ON;", CancellationToken.None);
         await ExecuteAsync(connection, "PRAGMA journal_mode = WAL;", CancellationToken.None);
-        await ExecuteAsync(connection, """
+        await using var transaction = connection.BeginTransaction(deferred: false);
+        await ExecuteAsync(connection, transaction, """
             CREATE TABLE IF NOT EXISTS reminder_rules (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -104,15 +126,16 @@ public sealed class DatabaseMigrator(string connectionString)
                 ON work_sessions (started_at);
             """, CancellationToken.None);
 
-        if (!await HasColumnAsync(connection, "work_sessions", "domain_id"))
+        if (!await HasColumnAsync(connection, transaction, "work_sessions", "domain_id"))
         {
             await ExecuteAsync(
                 connection,
+                transaction,
                 "ALTER TABLE work_sessions ADD COLUMN domain_id TEXT NULL;",
                 CancellationToken.None);
         }
 
-        await ExecuteAsync(connection, """
+        await ExecuteAsync(connection, transaction, """
             UPDATE work_sessions
             SET domain_id = printf('%032x', id)
             WHERE domain_id IS NULL OR domain_id = '';
@@ -120,14 +143,17 @@ public sealed class DatabaseMigrator(string connectionString)
             CREATE UNIQUE INDEX IF NOT EXISTS ux_work_sessions_domain_id
                 ON work_sessions (domain_id);
             """, CancellationToken.None);
+        await transaction.CommitAsync(CancellationToken.None);
     }
 
     private static async Task<bool> HasColumnAsync(
         SqliteConnection connection,
+        SqliteTransaction transaction,
         string table,
         string column)
     {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             SELECT 1
             FROM pragma_table_info($table)
@@ -147,5 +173,41 @@ public sealed class DatabaseMigrator(string connectionString)
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task ExecuteAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string sql,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static string GetMigrationKey(string connectionString)
+    {
+        var builder = new SqliteConnectionStringBuilder(connectionString);
+        var dataSource = builder.DataSource;
+        if (builder.Mode == SqliteOpenMode.Memory ||
+            string.Equals(dataSource, ":memory:", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"memory|{dataSource}|cache={builder.Cache}";
+        }
+
+        if (Uri.TryCreate(dataSource, UriKind.Absolute, out var uri) && uri.IsFile)
+        {
+            dataSource = uri.LocalPath;
+        }
+
+        var fullPath = Path.GetFullPath(dataSource);
+        if (OperatingSystem.IsWindows())
+        {
+            fullPath = fullPath.ToUpperInvariant();
+        }
+
+        return $"file|{fullPath}";
     }
 }

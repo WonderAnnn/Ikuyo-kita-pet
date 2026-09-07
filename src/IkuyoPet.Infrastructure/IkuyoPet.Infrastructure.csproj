@@ -9,4 +9,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IkuyoPet.Infrastructure.Tests" />
+  </ItemGroup>
 </Project>
