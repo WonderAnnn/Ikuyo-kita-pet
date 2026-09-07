@@ -109,6 +109,8 @@ public sealed class SqliteEventRepositoryTests
             Message = "该补水啦",
             IntervalMinutes = 60,
             Enabled = false,
+            DailyGoal = 8,
+            QuietHours = new QuietHours(new TimeOnly(22, 0), new TimeOnly(7, 0), true),
         };
 
         await repository.UpsertReminderRuleAsync(original, TestContext.Current.CancellationToken);
@@ -332,9 +334,21 @@ public sealed class SqliteEventRepositoryTests
         await using (var createLegacy = database.Connection.CreateCommand())
         {
             createLegacy.CommandText = """
+                CREATE TABLE tracked_apps (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    process_name TEXT NOT NULL UNIQUE,
+                    display_name TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                INSERT INTO tracked_apps
+                    (id, process_name, display_name, enabled, created_at, updated_at)
+                VALUES
+                    (1, 'legacy', 'Legacy', 1, '2026-09-06T00:00:00Z', '2026-09-06T00:00:00Z');
                 CREATE TABLE work_sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tracked_app_id INTEGER NOT NULL,
+                    tracked_app_id INTEGER NOT NULL REFERENCES tracked_apps(id),
                     started_at TEXT NOT NULL,
                     ended_at TEXT NULL,
                     active_seconds INTEGER NOT NULL,
@@ -357,6 +371,25 @@ public sealed class SqliteEventRepositoryTests
         Assert.Equal(
             "00000000000000000000000000000001",
             (string)(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken))!);
+
+        command.CommandText = "PRAGMA table_info(work_sessions);";
+        await using (var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken))
+        {
+            var domainIdIsNotNull = false;
+            while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+            {
+                if (reader.GetString(1) == "domain_id")
+                {
+                    domainIdIsNotNull = reader.GetInt32(3) == 1;
+                }
+            }
+
+            Assert.True(domainIdIsNotNull);
+        }
+
+        command.CommandText = "UPDATE work_sessions SET domain_id = NULL WHERE id = 1;";
+        await Assert.ThrowsAsync<SqliteException>(() =>
+            command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]

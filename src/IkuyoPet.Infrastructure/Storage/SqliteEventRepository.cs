@@ -105,7 +105,8 @@ public sealed class SqliteEventRepository(
         await ConfigureConnectionAsync(connection, cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, kind, name, start_local, end_local, interval_minutes, enabled
+            SELECT id, kind, name, start_local, end_local, interval_minutes, enabled,
+                   daily_goal, quiet_start, quiet_end, quiet_enabled
             FROM reminder_rules
             ORDER BY id;
             """;
@@ -121,7 +122,14 @@ public sealed class SqliteEventRepository(
                 ParseLocalTime(reader.GetString(3)),
                 ParseLocalTime(reader.GetString(4)),
                 reader.GetInt32(5),
-                reader.GetInt32(6) != 0));
+                reader.GetInt32(6) != 0)
+            {
+                DailyGoal = reader.GetInt32(7),
+                QuietHours = new QuietHours(
+                    ParseLocalTime(reader.GetString(8)),
+                    ParseLocalTime(reader.GetString(9)),
+                    reader.GetInt32(10) != 0),
+            });
         }
 
         return result;
@@ -142,10 +150,12 @@ public sealed class SqliteEventRepository(
         command.CommandText = """
             INSERT INTO reminder_rules
                 (id, name, kind, enabled, start_local, end_local, interval_minutes,
-                 quiet_start, quiet_end, max_retries, created_at, updated_at)
+                 daily_goal, quiet_start, quiet_end, quiet_enabled, max_retries,
+                 created_at, updated_at)
             VALUES
                 ($id, $name, $kind, $enabled, $start_local, $end_local, $interval_minutes,
-                 $quiet_start, $quiet_end, $max_retries, $created_at, $updated_at)
+                 $daily_goal, $quiet_start, $quiet_end, $quiet_enabled, $max_retries,
+                 $created_at, $updated_at)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 kind = excluded.kind,
@@ -153,6 +163,10 @@ public sealed class SqliteEventRepository(
                 start_local = excluded.start_local,
                 end_local = excluded.end_local,
                 interval_minutes = excluded.interval_minutes,
+                daily_goal = excluded.daily_goal,
+                quiet_start = excluded.quiet_start,
+                quiet_end = excluded.quiet_end,
+                quiet_enabled = excluded.quiet_enabled,
                 updated_at = excluded.updated_at;
             """;
         AddText(command, "$id", rule.Id.ToString("N"));
@@ -162,8 +176,10 @@ public sealed class SqliteEventRepository(
         AddText(command, "$start_local", ToDbLocalTime(rule.StartLocal));
         AddText(command, "$end_local", ToDbLocalTime(rule.EndLocal));
         command.Parameters.AddWithValue("$interval_minutes", rule.IntervalMinutes);
-        AddText(command, "$quiet_start", ToDbLocalTime(TimeOnly.MinValue));
-        AddText(command, "$quiet_end", ToDbLocalTime(TimeOnly.MinValue));
+        command.Parameters.AddWithValue("$daily_goal", rule.DailyGoal);
+        AddText(command, "$quiet_start", ToDbLocalTime(rule.QuietHours.StartLocalTime));
+        AddText(command, "$quiet_end", ToDbLocalTime(rule.QuietHours.EndLocalTime));
+        command.Parameters.AddWithValue("$quiet_enabled", rule.QuietHours.Enabled ? 1 : 0);
         command.Parameters.AddWithValue("$max_retries", 3);
         AddText(command, "$created_at", now);
         AddText(command, "$updated_at", now);

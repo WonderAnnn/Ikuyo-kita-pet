@@ -65,6 +65,30 @@ public sealed class DashboardQueryServiceTests
     }
 
     [Fact]
+    public async Task CountsCompletedHydrationAndActivityKinds()
+    {
+        var rules = new[]
+        {
+            new ReminderRule(Guid.NewGuid(), "water", "water", new(9, 0), new(18, 0), 45, true),
+            new ReminderRule(Guid.NewGuid(), "hydration", "hydration", new(9, 0), new(18, 0), 45, true),
+            new ReminderRule(Guid.NewGuid(), "activity", "activity", new(9, 0), new(18, 0), 45, true),
+            new ReminderRule(Guid.NewGuid(), "move", "move", new(9, 0), new(18, 0), 45, true),
+        };
+        var at = LocalAt(2026, 9, 7, 10, 0);
+        var events = rules.Select(rule => CreateEvent(rule.Id, at, ReminderOutcome.Completed, "pet"))
+            .Append(CreateEvent(rules[0].Id, at, ReminderOutcome.Skipped, "pet"))
+            .ToArray();
+        var service = new DashboardQueryService(new StubEventRepository(rules, events));
+
+        var snapshot = await service.GetAsync(new DateOnly(2026, 9, 7), TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, snapshot.HydrationCount);
+        Assert.Equal(2, snapshot.ActivityCount);
+        Assert.Equal(snapshot.WorkTime, snapshot.WorkDuration);
+        Assert.Equal(4, snapshot.CompletedCount);
+    }
+
+    [Fact]
     public async Task SplitsCrossMidnightWorkAcrossLocalDays()
     {
         var session = new WorkSession(

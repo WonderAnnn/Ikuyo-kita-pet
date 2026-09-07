@@ -17,7 +17,14 @@ public sealed record DashboardSnapshot(
     int SnoozedCount,
     int SkippedCount,
     int UnansweredCount,
-    TimeSpan WorkTime);
+    TimeSpan WorkTime)
+{
+    public int HydrationCount { get; init; }
+
+    public int ActivityCount { get; init; }
+
+    public TimeSpan WorkDuration => WorkTime;
+}
 
 public enum MainWindowPage
 {

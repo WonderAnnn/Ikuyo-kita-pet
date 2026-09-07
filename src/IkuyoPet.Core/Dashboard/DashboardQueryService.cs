@@ -37,12 +37,33 @@ public sealed class DashboardQueryService(
             Count(reminderEvents, ReminderOutcome.Snoozed),
             Count(reminderEvents, ReminderOutcome.Skipped),
             Count(reminderEvents, ReminderOutcome.Unanswered),
-            CalculateWorkTime(day, workSessions, timeZone ?? TimeZoneInfo.Local));
+            CalculateWorkTime(day, workSessions, timeZone ?? TimeZoneInfo.Local))
+        {
+            HydrationCount = CountCompletedByType(
+                reminderEvents,
+                kindsByRuleId,
+                "water",
+                "hydration"),
+            ActivityCount = CountCompletedByType(
+                reminderEvents,
+                kindsByRuleId,
+                "activity",
+                "move"),
+        };
     }
 
     private static int Count(
         IReadOnlyList<ReminderEvent> reminderEvents,
         ReminderOutcome outcome) => reminderEvents.Count(item => item.Outcome == outcome);
+
+    private static int CountCompletedByType(
+        IReadOnlyList<ReminderEvent> reminderEvents,
+        Dictionary<Guid, string> typesByRuleId,
+        params string[] acceptedTypes) => reminderEvents.Count(item =>
+        item.Outcome == ReminderOutcome.Completed &&
+        item.RuleId is Guid ruleId &&
+        typesByRuleId.TryGetValue(ruleId, out var type) &&
+        acceptedTypes.Contains(type, StringComparer.OrdinalIgnoreCase));
 
     private static string ResolveKind(
         Guid? ruleId,

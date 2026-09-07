@@ -14,6 +14,36 @@ public sealed class ReminderScheduleCalculatorTests
             "IkuyoPet Test UTC+08");
 
     [Fact]
+    public void ExposesReadableNamesAndKeepsLegacyNamesCompatible()
+    {
+        var rule = CreateRule(new TimeOnly(9, 0), new TimeOnly(18, 0), 45) with
+        {
+            DailyGoal = 8,
+            QuietHours = new QuietHours(new TimeOnly(22, 0), new TimeOnly(7, 0), true),
+        };
+
+        Assert.Equal(rule.Kind, rule.Type);
+        Assert.Equal(rule.StartLocal, rule.StartLocalTime);
+        Assert.Equal(rule.EndLocal, rule.EndLocalTime);
+        Assert.Equal(8, rule.DailyGoal);
+        Assert.True(rule.QuietHours.Enabled);
+    }
+
+    [Fact]
+    public void ReturnsNullInsideEnabledQuietHours()
+    {
+        var rule = CreateRule(TimeOnly.MinValue, TimeOnly.MaxValue, 45) with
+        {
+            QuietHours = new QuietHours(new TimeOnly(22, 0), new TimeOnly(7, 0), true),
+        };
+        var now = new DateTimeOffset(2026, 9, 7, 23, 0, 0, TimeSpan.FromHours(8));
+
+        var due = ReminderScheduleCalculator.GetDue(rule, now, null, FixedPlusEightTimeZone);
+
+        Assert.Null(due);
+    }
+
+    [Fact]
     public void ReturnsDueImmediatelyInsideEnabledWindowWhenNeverDisplayed()
     {
         var rule = CreateRule(

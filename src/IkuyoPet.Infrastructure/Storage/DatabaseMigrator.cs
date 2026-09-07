@@ -75,8 +75,10 @@ public sealed class DatabaseMigrator
                 start_local TEXT NOT NULL,
                 end_local TEXT NOT NULL,
                 interval_minutes INTEGER NOT NULL,
+                daily_goal INTEGER NOT NULL DEFAULT 0,
                 quiet_start TEXT NOT NULL,
                 quiet_end TEXT NOT NULL,
+                quiet_enabled INTEGER NOT NULL DEFAULT 0,
                 max_retries INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -126,6 +128,20 @@ public sealed class DatabaseMigrator
                 ON work_sessions (started_at);
             """, CancellationToken.None);
 
+        if (!await HasColumnAsync(connection, transaction, "reminder_rules", "daily_goal"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_rules ADD COLUMN daily_goal INTEGER NOT NULL DEFAULT 0;",
+                CancellationToken.None);
+        }
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_rules", "quiet_enabled"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_rules ADD COLUMN quiet_enabled INTEGER NOT NULL DEFAULT 0;",
+                CancellationToken.None);
+        }
+
         if (!await HasColumnAsync(connection, transaction, "work_sessions", "domain_id"))
         {
             await ExecuteAsync(
@@ -139,7 +155,32 @@ public sealed class DatabaseMigrator
             UPDATE work_sessions
             SET domain_id = printf('%032x', id)
             WHERE domain_id IS NULL OR domain_id = '';
+            """, CancellationToken.None);
 
+        if (!await IsColumnNotNullAsync(connection, transaction, "work_sessions", "domain_id"))
+        {
+            await ExecuteAsync(connection, transaction, """
+                CREATE TABLE work_sessions_rebuilt (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    domain_id TEXT NOT NULL,
+                    tracked_app_id INTEGER NOT NULL REFERENCES tracked_apps(id),
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT NULL,
+                    active_seconds INTEGER NOT NULL,
+                    end_reason TEXT NULL
+                );
+                INSERT INTO work_sessions_rebuilt
+                    (id, domain_id, tracked_app_id, started_at, ended_at, active_seconds, end_reason)
+                SELECT id, domain_id, tracked_app_id, started_at, ended_at, active_seconds, end_reason
+                FROM work_sessions;
+                DROP TABLE work_sessions;
+                ALTER TABLE work_sessions_rebuilt RENAME TO work_sessions;
+                """, CancellationToken.None);
+        }
+
+        await ExecuteAsync(connection, transaction, """
+            CREATE INDEX IF NOT EXISTS ix_work_sessions_started_at
+                ON work_sessions (started_at);
             CREATE UNIQUE INDEX IF NOT EXISTS ux_work_sessions_domain_id
                 ON work_sessions (domain_id);
             """, CancellationToken.None);
@@ -163,6 +204,25 @@ public sealed class DatabaseMigrator
         command.Parameters.AddWithValue("$table", table);
         command.Parameters.AddWithValue("$column", column);
         return await command.ExecuteScalarAsync(CancellationToken.None) is not null;
+    }
+
+    private static async Task<bool> IsColumnNotNullAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string table,
+        string column)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT [notnull]
+            FROM pragma_table_info($table)
+            WHERE name = $column
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$table", table);
+        command.Parameters.AddWithValue("$column", column);
+        return await command.ExecuteScalarAsync(CancellationToken.None) is long 1;
     }
 
     private static async Task ExecuteAsync(

@@ -17,7 +17,11 @@ public static class ReminderScheduleCalculator
 
         var localNow = TimeZoneInfo.ConvertTime(now, timeZone ?? TimeZoneInfo.Local);
         var localTime = TimeOnly.FromDateTime(localNow.DateTime);
-        if (!IsInsideWindow(localTime, rule.StartLocal, rule.EndLocal))
+        if (!IsInsideWindow(localTime, rule.StartLocalTime, rule.EndLocalTime) ||
+            rule.QuietHours.Enabled && IsInsideWindow(
+                localTime,
+                rule.QuietHours.StartLocalTime,
+                rule.QuietHours.EndLocalTime))
         {
             return null;
         }
@@ -30,7 +34,7 @@ public static class ReminderScheduleCalculator
 
         return new ReminderDue(
             Guid.NewGuid(),
-            rule.Kind,
+            rule.Type,
             rule.Message,
             [
                 new ReminderActionOption(ReminderAction.Complete, "完成啦"),
