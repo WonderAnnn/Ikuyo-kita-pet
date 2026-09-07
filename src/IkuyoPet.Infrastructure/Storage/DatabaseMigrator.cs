@@ -222,7 +222,8 @@ public sealed class DatabaseMigrator
             """;
         command.Parameters.AddWithValue("$table", table);
         command.Parameters.AddWithValue("$column", column);
-        return await command.ExecuteScalarAsync(CancellationToken.None) is long 1;
+        var value = await command.ExecuteScalarAsync(CancellationToken.None);
+        return value is long notNull && notNull == 1;
     }
 
     private static async Task ExecuteAsync(
