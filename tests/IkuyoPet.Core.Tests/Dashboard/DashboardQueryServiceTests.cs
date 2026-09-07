@@ -64,13 +64,97 @@ public sealed class DashboardQueryServiceTests
         Assert.Equal("unknown", Assert.Single(snapshot.Timeline).Kind);
     }
 
+    [Fact]
+    public async Task SplitsCrossMidnightWorkAcrossLocalDays()
+    {
+        var session = new WorkSession(
+            Guid.NewGuid(),
+            "pycharm64",
+            "PyCharm",
+            LocalAt(2026, 9, 6, 23, 59),
+            LocalAt(2026, 9, 7, 0, 1),
+            120,
+            "stopped");
+        var service = new DashboardQueryService(
+            new StubEventRepository(workSessions: [session]));
+
+        var firstDay = await service.GetAsync(
+            new DateOnly(2026, 9, 6),
+            TestContext.Current.CancellationToken);
+        var secondDay = await service.GetAsync(
+            new DateOnly(2026, 9, 7),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(TimeSpan.FromSeconds(60), firstDay.WorkTime);
+        Assert.Equal(TimeSpan.FromSeconds(60), secondDay.WorkTime);
+    }
+
+    [Fact]
+    public async Task IgnoresNegativeWorkAndClampsOverflowToTimeSpanMaximum()
+    {
+        var start = LocalAt(2026, 9, 7, 10, 0);
+        var sessions = Enumerable.Range(0, 430)
+            .Select(_ => new WorkSession(
+                Guid.NewGuid(),
+                "pycharm64",
+                "PyCharm",
+                start,
+                start.AddSeconds(1),
+                int.MaxValue,
+                "stopped"))
+            .Prepend(new WorkSession(
+                Guid.NewGuid(),
+                "pycharm64",
+                "PyCharm",
+                start,
+                start.AddSeconds(1),
+                -30,
+                "stopped"))
+            .ToArray();
+        var service = new DashboardQueryService(
+            new StubEventRepository(workSessions: sessions));
+
+        var snapshot = await service.GetAsync(
+            new DateOnly(2026, 9, 7),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(TimeSpan.MaxValue, snapshot.WorkTime);
+    }
+
+    [Fact]
+    public async Task OrdersEventsAtSameTimeById()
+    {
+        var scheduledAt = LocalAt(2026, 9, 7, 10, 0);
+        var first = CreateEvent(
+            Guid.NewGuid(),
+            scheduledAt,
+            ReminderOutcome.Completed,
+            "first",
+            eventId: Guid.ParseExact("00000000000000000000000000000001", "N"));
+        var second = CreateEvent(
+            Guid.NewGuid(),
+            scheduledAt,
+            ReminderOutcome.Completed,
+            "second",
+            eventId: Guid.ParseExact("00000000000000000000000000000002", "N"));
+        var service = new DashboardQueryService(
+            new StubEventRepository(reminderEvents: [second, first]));
+
+        var snapshot = await service.GetAsync(
+            new DateOnly(2026, 9, 7),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["first", "second"], snapshot.Timeline.Select(item => item.Channel));
+    }
+
     private static ReminderEvent CreateEvent(
         Guid ruleId,
         DateTimeOffset scheduledAt,
         ReminderOutcome outcome,
         string channel,
-        int retryIndex = 0) => new(
-            Guid.NewGuid(),
+        int retryIndex = 0,
+        Guid? eventId = null) => new(
+            eventId ?? Guid.NewGuid(),
             ruleId,
             scheduledAt,
             scheduledAt,
@@ -85,10 +169,16 @@ public sealed class DashboardQueryServiceTests
         Guid.NewGuid(),
         "pycharm64",
         "PyCharm",
-        DateTimeOffset.UtcNow,
-        DateTimeOffset.UtcNow.AddSeconds(seconds),
+        LocalAt(2026, 9, 7, 10, 0),
+        LocalAt(2026, 9, 7, 10, 0).AddSeconds(seconds),
         seconds,
         "foreground-changed");
+
+    private static DateTimeOffset LocalAt(int year, int month, int day, int hour, int minute)
+    {
+        var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Unspecified);
+        return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+    }
 
     private sealed class StubEventRepository(
         IReadOnlyList<ReminderRule>? rules = null,

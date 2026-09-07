@@ -61,7 +61,6 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
                 ($process_name, $display_name, 1, $created_at, $updated_at)
             ON CONFLICT(process_name) DO UPDATE SET
                 display_name = excluded.display_name,
-                enabled = 1,
                 updated_at = excluded.updated_at;
             """;
         AddText(upsert, "$process_name", session.ProcessName);
@@ -80,10 +79,11 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
         insertSession.Transaction = transaction;
         insertSession.CommandText = """
             INSERT INTO work_sessions
-                (tracked_app_id, started_at, ended_at, active_seconds, end_reason)
+                (domain_id, tracked_app_id, started_at, ended_at, active_seconds, end_reason)
             VALUES
-                ($tracked_app_id, $started_at, $ended_at, $active_seconds, $end_reason);
+                ($domain_id, $tracked_app_id, $started_at, $ended_at, $active_seconds, $end_reason);
             """;
+        AddText(insertSession, "$domain_id", session.Id.ToString("N"));
         insertSession.Parameters.AddWithValue("$tracked_app_id", trackedAppId);
         AddText(insertSession, "$started_at", ToDbTimestamp(session.StartedAt));
         AddText(insertSession, "$ended_at", ToDbTimestamp(session.EndedAt));
@@ -180,13 +180,13 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
         await ConfigureConnectionAsync(connection, cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT s.id, a.process_name, a.display_name, s.started_at, s.ended_at,
+            SELECT s.domain_id, a.process_name, a.display_name, s.started_at, s.ended_at,
                    s.active_seconds, s.end_reason
             FROM work_sessions AS s
             INNER JOIN tracked_apps AS a ON a.id = s.tracked_app_id
-            WHERE s.started_at >= $start AND s.started_at < $end
-              AND s.ended_at IS NOT NULL
-            ORDER BY s.started_at;
+            WHERE s.started_at < $end
+              AND s.ended_at > $start
+            ORDER BY s.started_at, s.domain_id;
             """;
         AddText(command, "$start", ToDbTimestamp(start));
         AddText(command, "$end", ToDbTimestamp(end));
@@ -196,7 +196,7 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
         while (await reader.ReadAsync(cancellationToken))
         {
             result.Add(new WorkSession(
-                ToSessionGuid(reader.GetInt64(0)),
+                Guid.ParseExact(reader.GetString(0), "N"),
                 reader.GetString(1),
                 reader.GetString(2),
                 ParseTimestamp(reader.GetString(3)),
@@ -348,9 +348,6 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
             new DateTimeOffset(localStart, TimeZoneInfo.Local.GetUtcOffset(localStart)).ToUniversalTime(),
             new DateTimeOffset(localEnd, TimeZoneInfo.Local.GetUtcOffset(localEnd)).ToUniversalTime());
     }
-
-    private static Guid ToSessionGuid(long id) =>
-        Guid.ParseExact(id.ToString("x32", CultureInfo.InvariantCulture), "N");
 
     private static string ToDbOutcome(ReminderOutcome outcome) => outcome switch
     {

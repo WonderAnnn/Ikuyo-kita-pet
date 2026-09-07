@@ -63,6 +63,34 @@ public sealed class SqliteEventRepositoryTests
     }
 
     [Fact]
+    public async Task AppendingSessionPreservesDisabledTrackedApplication()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var application = new TrackedApplication("pycharm64", "PyCharm", false);
+        var start = LocalAt(2026, 9, 6, 10, 0);
+        var session = new WorkSession(
+            Guid.NewGuid(),
+            application.ProcessName,
+            application.DisplayName,
+            start,
+            start.AddMinutes(1),
+            60,
+            "stopped");
+
+        await repository.UpsertTrackedApplicationAsync(
+            application,
+            TestContext.Current.CancellationToken);
+        await repository.AppendWorkSessionAsync(
+            session,
+            TestContext.Current.CancellationToken);
+        var stored = await repository.ReadTrackedApplicationsAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(stored).Enabled);
+    }
+
+    [Fact]
     public async Task UpsertsAndReadsReminderRules()
     {
         await using var database = TestDatabase.CreateInMemory();
@@ -119,13 +147,60 @@ public sealed class SqliteEventRepositoryTests
             TestContext.Current.CancellationToken);
 
         var session = Assert.Single(stored);
-        Assert.NotEqual(Guid.Empty, session.Id);
+        Assert.Equal(requested.Id, session.Id);
         Assert.Equal(requested.ProcessName, session.ProcessName);
         Assert.Equal(requested.DisplayName, session.DisplayName);
         Assert.Equal(requested.StartedAt.ToUniversalTime(), session.StartedAt);
         Assert.Equal(requested.EndedAt.ToUniversalTime(), session.EndedAt);
         Assert.Equal(requested.ActiveSeconds, session.ActiveSeconds);
         Assert.Equal(requested.EndReason, session.EndReason);
+    }
+
+    [Fact]
+    public async Task ReadsCrossMidnightSessionForBothIntersectingLocalDays()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var session = new WorkSession(
+            Guid.NewGuid(),
+            "pycharm64",
+            "PyCharm",
+            LocalAt(2026, 9, 6, 23, 59),
+            LocalAt(2026, 9, 7, 0, 1),
+            120,
+            "stopped");
+
+        await repository.AppendWorkSessionAsync(session, TestContext.Current.CancellationToken);
+        var firstDay = await repository.ReadWorkSessionsAsync(
+            new DateOnly(2026, 9, 6),
+            TestContext.Current.CancellationToken);
+        var secondDay = await repository.ReadWorkSessionsAsync(
+            new DateOnly(2026, 9, 7),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(session.Id, Assert.Single(firstDay).Id);
+        Assert.Equal(session.Id, Assert.Single(secondDay).Id);
+    }
+
+    [Fact]
+    public async Task RejectsDuplicateWorkSessionDomainId()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var start = LocalAt(2026, 9, 6, 10, 0);
+        var session = new WorkSession(
+            Guid.NewGuid(),
+            "pycharm64",
+            "PyCharm",
+            start,
+            start.AddMinutes(1),
+            60,
+            "stopped");
+
+        await repository.AppendWorkSessionAsync(session, TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<SqliteException>(() =>
+            repository.AppendWorkSessionAsync(session, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -163,6 +238,78 @@ public sealed class SqliteEventRepositoryTests
             """;
 
         Assert.Equal(5L, (long)(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken))!);
+    }
+
+    [Fact]
+    public async Task ConcurrentMigrationCallsCompleteAgainstSameDatabase()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var migrations = Enumerable.Range(0, 20)
+            .Select(_ => new DatabaseMigrator(database.ConnectionString)
+                .MigrateAsync(TestContext.Current.CancellationToken));
+
+        await Task.WhenAll(migrations);
+
+        await using var command = database.Connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'work_sessions';";
+        Assert.Equal(1L, (long)(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken))!);
+    }
+
+    [Fact]
+    public async Task FailedMigrationCanBeRetried()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        await using (var createConflict = database.Connection.CreateCommand())
+        {
+            createConflict.CommandText = "CREATE VIEW work_sessions AS SELECT 1 AS value;";
+            await createConflict.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        var migrator = new DatabaseMigrator(database.ConnectionString);
+        await Assert.ThrowsAsync<SqliteException>(() =>
+            migrator.MigrateAsync(TestContext.Current.CancellationToken));
+
+        await using (var removeConflict = database.Connection.CreateCommand())
+        {
+            removeConflict.CommandText = "DROP VIEW work_sessions;";
+            await removeConflict.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        await migrator.MigrateAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task MigrationAddsDomainIdToExistingWorkSessions()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        await using (var createLegacy = database.Connection.CreateCommand())
+        {
+            createLegacy.CommandText = """
+                CREATE TABLE work_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tracked_app_id INTEGER NOT NULL,
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT NULL,
+                    active_seconds INTEGER NOT NULL,
+                    end_reason TEXT NULL
+                );
+                INSERT INTO work_sessions
+                    (tracked_app_id, started_at, ended_at, active_seconds, end_reason)
+                VALUES
+                    (1, '2026-09-06T02:00:00.0000000+00:00',
+                     '2026-09-06T02:01:00.0000000+00:00', 60, 'legacy');
+                """;
+            await createLegacy.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        await new DatabaseMigrator(database.ConnectionString)
+            .MigrateAsync(TestContext.Current.CancellationToken);
+
+        await using var command = database.Connection.CreateCommand();
+        command.CommandText = "SELECT domain_id FROM work_sessions WHERE id = 1;";
+        Assert.Equal(
+            "00000000000000000000000000000001",
+            (string)(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken))!);
     }
 
     [Fact]
@@ -242,6 +389,8 @@ public sealed class SqliteEventRepositoryTests
         }
 
         public string ConnectionString => _connection.ConnectionString;
+
+        public SqliteConnection Connection => _connection;
 
         public static TestDatabase CreateInMemory()
         {

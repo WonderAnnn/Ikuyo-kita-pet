@@ -1,16 +1,49 @@
+using System.Collections.Concurrent;
 using Microsoft.Data.Sqlite;
 
 namespace IkuyoPet.Infrastructure.Storage;
 
 public sealed class DatabaseMigrator(string connectionString)
 {
+    private static readonly ConcurrentDictionary<string, Lazy<Task>> Migrations =
+        new(StringComparer.Ordinal);
+
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var migration = Migrations.GetOrAdd(
+            connectionString,
+            static value => new Lazy<Task>(
+                () => MigrateCoreAsync(value),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+        var migrationTask = migration.Value;
 
-        await ExecuteAsync(connection, "PRAGMA foreign_keys = ON;", cancellationToken);
-        await ExecuteAsync(connection, "PRAGMA journal_mode = WAL;", cancellationToken);
+        try
+        {
+            await migrationTask.WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            if (migrationTask.IsFaulted || migrationTask.IsCanceled)
+            {
+                if (Migrations.TryGetValue(connectionString, out var cached) &&
+                    ReferenceEquals(cached, migration))
+                {
+                    Migrations.TryRemove(connectionString, out _);
+                }
+            }
+
+            throw;
+        }
+    }
+
+    private static async Task MigrateCoreAsync(string value)
+    {
+        await using var connection = new SqliteConnection(value);
+        await connection.OpenAsync(CancellationToken.None);
+
+        await ExecuteAsync(connection, "PRAGMA foreign_keys = ON;", CancellationToken.None);
+        await ExecuteAsync(connection, "PRAGMA journal_mode = WAL;", CancellationToken.None);
         await ExecuteAsync(connection, """
             CREATE TABLE IF NOT EXISTS reminder_rules (
                 id TEXT PRIMARY KEY,
@@ -51,6 +84,7 @@ public sealed class DatabaseMigrator(string connectionString)
 
             CREATE TABLE IF NOT EXISTS work_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain_id TEXT NOT NULL,
                 tracked_app_id INTEGER NOT NULL REFERENCES tracked_apps(id),
                 started_at TEXT NOT NULL,
                 ended_at TEXT NULL,
@@ -68,7 +102,41 @@ public sealed class DatabaseMigrator(string connectionString)
                 ON reminder_events (scheduled_at);
             CREATE INDEX IF NOT EXISTS ix_work_sessions_started_at
                 ON work_sessions (started_at);
-            """, cancellationToken);
+            """, CancellationToken.None);
+
+        if (!await HasColumnAsync(connection, "work_sessions", "domain_id"))
+        {
+            await ExecuteAsync(
+                connection,
+                "ALTER TABLE work_sessions ADD COLUMN domain_id TEXT NULL;",
+                CancellationToken.None);
+        }
+
+        await ExecuteAsync(connection, """
+            UPDATE work_sessions
+            SET domain_id = printf('%032x', id)
+            WHERE domain_id IS NULL OR domain_id = '';
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_work_sessions_domain_id
+                ON work_sessions (domain_id);
+            """, CancellationToken.None);
+    }
+
+    private static async Task<bool> HasColumnAsync(
+        SqliteConnection connection,
+        string table,
+        string column)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT 1
+            FROM pragma_table_info($table)
+            WHERE name = $column
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$table", table);
+        command.Parameters.AddWithValue("$column", column);
+        return await command.ExecuteScalarAsync(CancellationToken.None) is not null;
     }
 
     private static async Task ExecuteAsync(
