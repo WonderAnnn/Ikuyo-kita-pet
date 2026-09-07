@@ -6,6 +6,13 @@ namespace IkuyoPet.Core.Tests.Reminders;
 
 public sealed class ReminderScheduleCalculatorTests
 {
+    private static TimeZoneInfo FixedPlusEightTimeZone { get; } =
+        TimeZoneInfo.CreateCustomTimeZone(
+            "IkuyoPet-Test-UTC+08",
+            TimeSpan.FromHours(8),
+            "IkuyoPet Test UTC+08",
+            "IkuyoPet Test UTC+08");
+
     [Fact]
     public void ReturnsDueImmediatelyInsideEnabledWindowWhenNeverDisplayed()
     {
@@ -15,7 +22,11 @@ public sealed class ReminderScheduleCalculatorTests
             intervalMinutes: 45);
         var now = new DateTimeOffset(2026, 9, 7, 10, 15, 0, TimeSpan.FromHours(8));
 
-        var due = ReminderScheduleCalculator.GetDue(rule, now, lastDisplayedAt: null);
+        var due = ReminderScheduleCalculator.GetDue(
+            rule,
+            now,
+            lastDisplayedAt: null,
+            FixedPlusEightTimeZone);
 
         Assert.NotNull(due);
         Assert.Equal(rule.Kind, due.Kind);
@@ -26,15 +37,37 @@ public sealed class ReminderScheduleCalculatorTests
     }
 
     [Fact]
-    public void UsesOffsetClockTimeInsteadOfComputerTimeZone()
+    public void ConvertsInstantToConfiguredLocalTimeZone()
     {
         var rule = CreateRule(
             startLocal: new TimeOnly(8, 30),
             endLocal: new TimeOnly(9, 30),
             intervalMinutes: 30);
-        var now = new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.FromHours(-7));
+        var now = new DateTimeOffset(2026, 9, 7, 0, 45, 0, TimeSpan.Zero);
+        var due = ReminderScheduleCalculator.GetDue(
+            rule,
+            now,
+            lastDisplayedAt: null,
+            FixedPlusEightTimeZone);
 
-        var due = ReminderScheduleCalculator.GetDue(rule, now, lastDisplayedAt: null);
+        Assert.NotNull(due);
+    }
+
+    [Fact]
+    public void UsesComputerLocalTimeZoneByDefault()
+    {
+        var now = new DateTimeOffset(2026, 9, 7, 12, 0, 0, TimeSpan.Zero);
+        var expectedLocal = TimeOnly.FromDateTime(
+            TimeZoneInfo.ConvertTime(now, TimeZoneInfo.Local).DateTime);
+        var rule = CreateRule(
+            startLocal: expectedLocal.AddMinutes(-1),
+            endLocal: expectedLocal.AddMinutes(1),
+            intervalMinutes: 30);
+
+        var due = ReminderScheduleCalculator.GetDue(
+            rule,
+            now,
+            lastDisplayedAt: null);
 
         Assert.NotNull(due);
     }
@@ -51,7 +84,11 @@ public sealed class ReminderScheduleCalculatorTests
             intervalMinutes: 30);
         var now = new DateTimeOffset(2026, 9, 7, hour, minute, 0, TimeSpan.FromHours(8));
 
-        var due = ReminderScheduleCalculator.GetDue(rule, now, lastDisplayedAt: null);
+        var due = ReminderScheduleCalculator.GetDue(
+            rule,
+            now,
+            lastDisplayedAt: null,
+            FixedPlusEightTimeZone);
 
         Assert.Equal(expectedDue, due is not null);
     }
@@ -68,7 +105,8 @@ public sealed class ReminderScheduleCalculatorTests
         var due = ReminderScheduleCalculator.GetDue(
             rule,
             now,
-            lastDisplayedAt: now.AddMinutes(-44));
+            lastDisplayedAt: now.AddMinutes(-44),
+            FixedPlusEightTimeZone);
 
         Assert.Null(due);
     }
@@ -85,7 +123,8 @@ public sealed class ReminderScheduleCalculatorTests
         var due = ReminderScheduleCalculator.GetDue(
             rule,
             now,
-            lastDisplayedAt: now.AddMinutes(-45));
+            lastDisplayedAt: now.AddMinutes(-45),
+            FixedPlusEightTimeZone);
 
         Assert.NotNull(due);
     }
@@ -103,7 +142,11 @@ public sealed class ReminderScheduleCalculatorTests
             enabled: enabled);
         var now = new DateTimeOffset(2026, 9, 7, 10, 15, 0, TimeSpan.FromHours(8));
 
-        var due = ReminderScheduleCalculator.GetDue(rule, now, lastDisplayedAt: null);
+        var due = ReminderScheduleCalculator.GetDue(
+            rule,
+            now,
+            lastDisplayedAt: null,
+            FixedPlusEightTimeZone);
 
         Assert.Null(due);
     }

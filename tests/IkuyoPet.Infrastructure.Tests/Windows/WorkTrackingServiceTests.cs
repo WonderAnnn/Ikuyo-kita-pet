@@ -116,5 +116,26 @@ public sealed class WorkTrackingServiceTests
             DateOnly day,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReminderEvent>>(ReminderEvents);
+
+        public Task<IReadOnlyList<ReminderRule>> ReadReminderRulesAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ReminderRule>>([]);
+
+        public Task UpsertReminderRuleAsync(
+            ReminderRule rule,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<WorkSession>> ReadWorkSessionsAsync(
+            DateOnly day,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<WorkSession>>(Sessions);
+
+        public Task<IReadOnlyList<TrackedApplication>> ReadTrackedApplicationsAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TrackedApplication>>([]);
+
+        public Task UpsertTrackedApplicationAsync(
+            TrackedApplication application,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

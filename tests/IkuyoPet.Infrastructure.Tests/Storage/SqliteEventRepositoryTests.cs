@@ -61,6 +61,88 @@ public sealed class SqliteEventRepositoryTests
         Assert.Equal(5, reader.GetInt32(2));
         Assert.Equal("stopped", reader.GetString(3));
     }
+
+    [Fact]
+    public async Task UpsertsAndReadsReminderRules()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var id = Guid.NewGuid();
+        var original = new ReminderRule(
+            id,
+            "water",
+            "喝点水吧",
+            new TimeOnly(9, 0),
+            new TimeOnly(18, 0),
+            45,
+            true);
+        var updated = original with
+        {
+            Message = "该补水啦",
+            IntervalMinutes = 60,
+            Enabled = false,
+        };
+
+        await repository.UpsertReminderRuleAsync(original, TestContext.Current.CancellationToken);
+        await repository.UpsertReminderRuleAsync(updated, TestContext.Current.CancellationToken);
+        var stored = await repository.ReadReminderRulesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(updated, Assert.Single(stored));
+    }
+
+    [Fact]
+    public async Task ReadsWorkSessionsOnlyForRequestedLocalDate()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var requested = new WorkSession(
+            Guid.NewGuid(),
+            "pycharm64",
+            "PyCharm",
+            LocalAt(2026, 9, 6, 10, 0),
+            LocalAt(2026, 9, 6, 10, 1),
+            60,
+            "app-switched");
+        var nextDay = new WorkSession(
+            Guid.NewGuid(),
+            "code",
+            "Visual Studio Code",
+            LocalAt(2026, 9, 7, 0, 1),
+            LocalAt(2026, 9, 7, 0, 2),
+            60,
+            "stopped");
+
+        await repository.AppendWorkSessionAsync(requested, TestContext.Current.CancellationToken);
+        await repository.AppendWorkSessionAsync(nextDay, TestContext.Current.CancellationToken);
+        var stored = await repository.ReadWorkSessionsAsync(
+            new DateOnly(2026, 9, 6),
+            TestContext.Current.CancellationToken);
+
+        var session = Assert.Single(stored);
+        Assert.NotEqual(Guid.Empty, session.Id);
+        Assert.Equal(requested.ProcessName, session.ProcessName);
+        Assert.Equal(requested.DisplayName, session.DisplayName);
+        Assert.Equal(requested.StartedAt.ToUniversalTime(), session.StartedAt);
+        Assert.Equal(requested.EndedAt.ToUniversalTime(), session.EndedAt);
+        Assert.Equal(requested.ActiveSeconds, session.ActiveSeconds);
+        Assert.Equal(requested.EndReason, session.EndReason);
+    }
+
+    [Fact]
+    public async Task UpsertsAndReadsTrackedApplications()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var original = new TrackedApplication("pycharm64", "PyCharm", true);
+        var updated = original with { DisplayName = "PyCharm 2026", Enabled = false };
+
+        await repository.UpsertTrackedApplicationAsync(original, TestContext.Current.CancellationToken);
+        await repository.UpsertTrackedApplicationAsync(updated, TestContext.Current.CancellationToken);
+        var stored = await repository.ReadTrackedApplicationsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(updated, Assert.Single(stored));
+    }
+
     [Fact]
     public async Task MigrationIsIdempotentAndCreatesTheFiveLocalTables()
     {

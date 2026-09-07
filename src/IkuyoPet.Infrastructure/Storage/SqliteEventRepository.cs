@@ -92,16 +92,186 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
         await insertSession.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<ReminderRule>> ReadReminderRulesAsync(
+        CancellationToken cancellationToken)
+    {
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT id, kind, name, start_local, end_local, interval_minutes, enabled
+            FROM reminder_rules
+            ORDER BY id;
+            """;
+
+        var result = new List<ReminderRule>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new ReminderRule(
+                Guid.ParseExact(reader.GetString(0), "N"),
+                reader.GetString(1),
+                reader.GetString(2),
+                ParseLocalTime(reader.GetString(3)),
+                ParseLocalTime(reader.GetString(4)),
+                reader.GetInt32(5),
+                reader.GetInt32(6) != 0));
+        }
+
+        return result;
+    }
+
+    public async Task UpsertReminderRuleAsync(
+        ReminderRule rule,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        var now = ToDbTimestamp(DateTimeOffset.UtcNow);
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO reminder_rules
+                (id, name, kind, enabled, start_local, end_local, interval_minutes,
+                 quiet_start, quiet_end, max_retries, created_at, updated_at)
+            VALUES
+                ($id, $name, $kind, $enabled, $start_local, $end_local, $interval_minutes,
+                 $quiet_start, $quiet_end, $max_retries, $created_at, $updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                kind = excluded.kind,
+                enabled = excluded.enabled,
+                start_local = excluded.start_local,
+                end_local = excluded.end_local,
+                interval_minutes = excluded.interval_minutes,
+                updated_at = excluded.updated_at;
+            """;
+        AddText(command, "$id", rule.Id.ToString("N"));
+        AddText(command, "$name", rule.Message);
+        AddText(command, "$kind", rule.Kind);
+        command.Parameters.AddWithValue("$enabled", rule.Enabled ? 1 : 0);
+        AddText(command, "$start_local", ToDbLocalTime(rule.StartLocal));
+        AddText(command, "$end_local", ToDbLocalTime(rule.EndLocal));
+        command.Parameters.AddWithValue("$interval_minutes", rule.IntervalMinutes);
+        AddText(command, "$quiet_start", ToDbLocalTime(TimeOnly.MinValue));
+        AddText(command, "$quiet_end", ToDbLocalTime(TimeOnly.MinValue));
+        command.Parameters.AddWithValue("$max_retries", 3);
+        AddText(command, "$created_at", now);
+        AddText(command, "$updated_at", now);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<WorkSession>> ReadWorkSessionsAsync(
+        DateOnly day,
+        CancellationToken cancellationToken)
+    {
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+        var (start, end) = GetUtcDayBounds(day);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT s.id, a.process_name, a.display_name, s.started_at, s.ended_at,
+                   s.active_seconds, s.end_reason
+            FROM work_sessions AS s
+            INNER JOIN tracked_apps AS a ON a.id = s.tracked_app_id
+            WHERE s.started_at >= $start AND s.started_at < $end
+              AND s.ended_at IS NOT NULL
+            ORDER BY s.started_at;
+            """;
+        AddText(command, "$start", ToDbTimestamp(start));
+        AddText(command, "$end", ToDbTimestamp(end));
+
+        var result = new List<WorkSession>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new WorkSession(
+                ToSessionGuid(reader.GetInt64(0)),
+                reader.GetString(1),
+                reader.GetString(2),
+                ParseTimestamp(reader.GetString(3)),
+                ParseTimestamp(reader.GetString(4)),
+                reader.GetInt32(5),
+                reader.IsDBNull(6) ? string.Empty : reader.GetString(6)));
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<TrackedApplication>> ReadTrackedApplicationsAsync(
+        CancellationToken cancellationToken)
+    {
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT process_name, display_name, enabled
+            FROM tracked_apps
+            ORDER BY display_name, process_name;
+            """;
+
+        var result = new List<TrackedApplication>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new TrackedApplication(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetInt32(2) != 0));
+        }
+
+        return result;
+    }
+
+    public async Task UpsertTrackedApplicationAsync(
+        TrackedApplication application,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(application);
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        var now = ToDbTimestamp(DateTimeOffset.UtcNow);
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO tracked_apps
+                (process_name, display_name, enabled, created_at, updated_at)
+            VALUES
+                ($process_name, $display_name, $enabled, $created_at, $updated_at)
+            ON CONFLICT(process_name) DO UPDATE SET
+                display_name = excluded.display_name,
+                enabled = excluded.enabled,
+                updated_at = excluded.updated_at;
+            """;
+        AddText(command, "$process_name", application.ProcessName);
+        AddText(command, "$display_name", application.DisplayName);
+        command.Parameters.AddWithValue("$enabled", application.Enabled ? 1 : 0);
+        AddText(command, "$created_at", now);
+        AddText(command, "$updated_at", now);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ReminderEvent>> ReadReminderEventsAsync(
         DateOnly day,
         CancellationToken cancellationToken)
     {
         await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
-
-        var localStart = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
-        var localEnd = day.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
-        var start = new DateTimeOffset(localStart, TimeZoneInfo.Local.GetUtcOffset(localStart)).ToUniversalTime();
-        var end = new DateTimeOffset(localEnd, TimeZoneInfo.Local.GetUtcOffset(localEnd)).ToUniversalTime();
+        var (start, end) = GetUtcDayBounds(day);
 
         await using var connection = new SqliteConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
@@ -163,6 +333,24 @@ public sealed class SqliteEventRepository(string connectionString) : IEventRepos
 
     private static DateTimeOffset ParseTimestamp(string value) =>
         DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+
+    private static string ToDbLocalTime(TimeOnly value) =>
+        value.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture);
+
+    private static TimeOnly ParseLocalTime(string value) =>
+        TimeOnly.Parse(value, CultureInfo.InvariantCulture);
+
+    private static (DateTimeOffset Start, DateTimeOffset End) GetUtcDayBounds(DateOnly day)
+    {
+        var localStart = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        var localEnd = day.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        return (
+            new DateTimeOffset(localStart, TimeZoneInfo.Local.GetUtcOffset(localStart)).ToUniversalTime(),
+            new DateTimeOffset(localEnd, TimeZoneInfo.Local.GetUtcOffset(localEnd)).ToUniversalTime());
+    }
+
+    private static Guid ToSessionGuid(long id) =>
+        Guid.ParseExact(id.ToString("x32", CultureInfo.InvariantCulture), "N");
 
     private static string ToDbOutcome(ReminderOutcome outcome) => outcome switch
     {

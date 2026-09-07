@@ -7,14 +7,16 @@ public static class ReminderScheduleCalculator
     public static ReminderDue? GetDue(
         ReminderRule rule,
         DateTimeOffset now,
-        DateTimeOffset? lastDisplayedAt)
+        DateTimeOffset? lastDisplayedAt,
+        TimeZoneInfo? timeZone = null)
     {
         if (!rule.Enabled || rule.IntervalMinutes <= 0)
         {
             return null;
         }
 
-        var localTime = TimeOnly.FromTimeSpan(now.TimeOfDay);
+        var localNow = TimeZoneInfo.ConvertTime(now, timeZone ?? TimeZoneInfo.Local);
+        var localTime = TimeOnly.FromDateTime(localNow.DateTime);
         if (!IsInsideWindow(localTime, rule.StartLocal, rule.EndLocal))
         {
             return null;
