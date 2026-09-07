@@ -18,3 +18,8 @@ public sealed record WorkSession(
     DateTimeOffset EndedAt,
     int ActiveSeconds,
     string EndReason);
+
+public sealed record TrackedApplication(
+    string ProcessName,
+    string DisplayName,
+    bool Enabled);

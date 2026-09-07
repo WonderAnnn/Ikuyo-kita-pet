@@ -12,4 +12,19 @@ public interface IEventRepository
     Task<IReadOnlyList<ReminderEvent>> ReadReminderEventsAsync(
         DateOnly day,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ReminderRule>> ReadReminderRulesAsync(CancellationToken cancellationToken);
+
+    Task UpsertReminderRuleAsync(ReminderRule rule, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<WorkSession>> ReadWorkSessionsAsync(
+        DateOnly day,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TrackedApplication>> ReadTrackedApplicationsAsync(
+        CancellationToken cancellationToken);
+
+    Task UpsertTrackedApplicationAsync(
+        TrackedApplication application,
+        CancellationToken cancellationToken);
 }
