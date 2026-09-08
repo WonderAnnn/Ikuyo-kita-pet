@@ -12,6 +12,7 @@ public sealed class ReminderLoop
     private readonly TimeProvider timeProvider;
     private readonly TimeZoneInfo timeZone;
     private readonly TimeSpan tickInterval;
+    private readonly Func<bool> isPaused;
     private readonly Dictionary<Guid, DateTimeOffset> lastDisplayedAt = [];
 
     public ReminderLoop(
@@ -20,7 +21,8 @@ public sealed class ReminderLoop
         Func<bool> isPetEnabled,
         TimeProvider timeProvider,
         TimeZoneInfo timeZone,
-        TimeSpan? tickInterval = null)
+        TimeSpan? tickInterval = null,
+        Func<bool>? isPaused = null)
     {
         this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         this.router = router ?? throw new ArgumentNullException(nameof(router));
@@ -28,6 +30,7 @@ public sealed class ReminderLoop
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         this.timeZone = timeZone ?? throw new ArgumentNullException(nameof(timeZone));
         this.tickInterval = tickInterval ?? TimeSpan.FromSeconds(30);
+        this.isPaused = isPaused ?? (() => false);
         ArgumentOutOfRangeException.ThrowIfLessThan(this.tickInterval, TimeSpan.Zero);
     }
 
@@ -36,14 +39,14 @@ public sealed class ReminderLoop
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await ProcessOnceAsync(cancellationToken);
+            await ProcessOnceAsync(cancellationToken).ConfigureAwait(false);
             if (tickInterval == TimeSpan.Zero)
             {
                 await Task.Yield();
             }
             else
             {
-                await Task.Delay(tickInterval, timeProvider, cancellationToken);
+                await Task.Delay(tickInterval, timeProvider, cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -52,7 +55,8 @@ public sealed class ReminderLoop
     {
         cancellationToken.ThrowIfCancellationRequested();
         var now = timeProvider.GetUtcNow();
-        var rules = await repository.ReadReminderRulesAsync(cancellationToken);
+        if (isPaused()) return;
+        var rules = await repository.ReadReminderRulesAsync(cancellationToken).ConfigureAwait(false);
 
         foreach (var rule in rules)
         {
@@ -83,14 +87,14 @@ public sealed class ReminderLoop
                 0,
                 null,
                 now);
-            await repository.AppendReminderAsync(item, cancellationToken);
-            var channel = await router.ShowAsync(due, petEnabled, cancellationToken);
+            await repository.AppendReminderAsync(item, cancellationToken).ConfigureAwait(false);
+            var channel = await router.ShowAsync(due, petEnabled, cancellationToken).ConfigureAwait(false);
             if (channel != item.Channel &&
                 !await repository.UpdateReminderChannelAsync(
                     item.Id,
                     item.Channel,
                     channel,
-                    cancellationToken))
+                    cancellationToken).ConfigureAwait(false))
             {
                 throw new InvalidOperationException(
                     $"Reminder event '{item.Id}' channel could not be updated.");

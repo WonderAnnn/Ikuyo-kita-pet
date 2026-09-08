@@ -113,7 +113,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     {
         if (sender is Hyperlink { Tag: ReminderAction action })
         {
-            var eventId = (ReminderText.DataContext as PetReminderView)?.Due.EventId ?? Guid.Empty;
+            var eventId = currentView?.Due.EventId ?? Guid.Empty;
             ActionInvoked?.Invoke(
                 this,
                 new PetReminderActionInvokedEventArgs(eventId, action));
