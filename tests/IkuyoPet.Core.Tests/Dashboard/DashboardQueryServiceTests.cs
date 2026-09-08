@@ -278,6 +278,15 @@ public sealed class DashboardQueryServiceTests
 
         public Task AppendReminderAsync(ReminderEvent item, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task<ReminderEvent?> ReadReminderEventAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult((reminderEvents ?? []).SingleOrDefault(item => item.Id == id));
+
+        public Task<bool> TryUpdateReminderAsync(
+            ReminderEvent item,
+            ReminderOutcome expectedOutcome,
+            int expectedRetryIndex,
+            CancellationToken cancellationToken) => Task.FromResult(false);
+
         public Task AppendWorkSessionAsync(WorkSession session, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<IReadOnlyList<ReminderEvent>> ReadReminderEventsAsync(DateOnly day, CancellationToken cancellationToken)

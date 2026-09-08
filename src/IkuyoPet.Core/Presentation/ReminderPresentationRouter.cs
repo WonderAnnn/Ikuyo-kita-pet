@@ -4,6 +4,9 @@ public sealed class ReminderPresentationRouter(
     IReminderPresenter petPresenter,
     IReminderPresenter notificationPresenter)
 {
+    public string GetChannel(bool petEnabled) =>
+        petEnabled ? petPresenter.Channel : notificationPresenter.Channel;
+
     public async Task ShowAsync(
         ReminderDue due,
         bool petEnabled,

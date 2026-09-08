@@ -42,6 +42,59 @@ public sealed class SqliteEventRepository(
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<ReminderEvent?> ReadReminderEventAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT id, rule_id, scheduled_at, displayed_at, channel, action,
+                   action_at, retry_index, suppressed_reason, created_at
+            FROM reminder_events
+            WHERE id = $id;
+            """;
+        AddText(command, "$id", id.ToString("N"));
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? ReadReminderEvent(reader) : null;
+    }
+
+    public async Task<bool> TryUpdateReminderAsync(
+        ReminderEvent item,
+        ReminderOutcome expectedOutcome,
+        int expectedRetryIndex,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE reminder_events
+            SET action = $action,
+                action_at = $action_at,
+                retry_index = $retry_index
+            WHERE id = $id
+              AND action = $expected_action
+              AND retry_index = $expected_retry_index;
+            """;
+        AddText(command, "$action", ToDbOutcome(item.Outcome));
+        AddNullableText(command, "$action_at", ToDbTimestamp(item.ActionAt));
+        command.Parameters.AddWithValue("$retry_index", item.RetryIndex);
+        AddText(command, "$id", item.Id.ToString("N"));
+        AddText(command, "$expected_action", ToDbOutcome(expectedOutcome));
+        command.Parameters.AddWithValue("$expected_retry_index", expectedRetryIndex);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
     public async Task AppendWorkSessionAsync(
         WorkSession session,
         CancellationToken cancellationToken)
@@ -309,17 +362,7 @@ public sealed class SqliteEventRepository(
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            result.Add(new ReminderEvent(
-                Guid.ParseExact(reader.GetString(0), "N"),
-                reader.IsDBNull(1) ? null : Guid.ParseExact(reader.GetString(1), "N"),
-                ParseTimestamp(reader.GetString(2)),
-                reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3)),
-                reader.GetString(4),
-                ParseOutcome(reader.GetString(5)),
-                reader.IsDBNull(6) ? null : ParseTimestamp(reader.GetString(6)),
-                reader.GetInt32(7),
-                reader.IsDBNull(8) ? null : reader.GetString(8),
-                ParseTimestamp(reader.GetString(9))));
+            result.Add(ReadReminderEvent(reader));
         }
 
         return result;
@@ -351,6 +394,18 @@ public sealed class SqliteEventRepository(
 
     private static DateTimeOffset ParseTimestamp(string value) =>
         DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+
+    private static ReminderEvent ReadReminderEvent(SqliteDataReader reader) => new(
+        Guid.ParseExact(reader.GetString(0), "N"),
+        reader.IsDBNull(1) ? null : Guid.ParseExact(reader.GetString(1), "N"),
+        ParseTimestamp(reader.GetString(2)),
+        reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3)),
+        reader.GetString(4),
+        ParseOutcome(reader.GetString(5)),
+        reader.IsDBNull(6) ? null : ParseTimestamp(reader.GetString(6)),
+        reader.GetInt32(7),
+        reader.IsDBNull(8) ? null : reader.GetString(8),
+        ParseTimestamp(reader.GetString(9)));
 
     private static string ToDbLocalTime(TimeOnly value) =>
         value.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture);

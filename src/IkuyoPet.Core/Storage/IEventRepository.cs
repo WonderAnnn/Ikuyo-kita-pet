@@ -7,6 +7,25 @@ public interface IEventRepository
 {
     Task AppendReminderAsync(ReminderEvent item, CancellationToken cancellationToken);
 
+    Task<ReminderEvent?> ReadReminderEventAsync(Guid id, CancellationToken cancellationToken);
+
+    Task<bool> TryUpdateReminderAsync(
+        ReminderEvent item,
+        ReminderOutcome expectedOutcome,
+        int expectedRetryIndex,
+        CancellationToken cancellationToken);
+
+    Task<bool> UpdateReminderOutcomeAsync(
+        ReminderEvent item,
+        ReminderOutcome expectedOutcome,
+        int expectedRetryIndex,
+        CancellationToken cancellationToken) =>
+        TryUpdateReminderAsync(
+            item,
+            expectedOutcome,
+            expectedRetryIndex,
+            cancellationToken);
+
     Task AppendWorkSessionAsync(WorkSession session, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ReminderEvent>> ReadReminderEventsAsync(
