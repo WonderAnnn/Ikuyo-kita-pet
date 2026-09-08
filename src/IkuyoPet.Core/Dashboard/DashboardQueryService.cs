@@ -6,6 +6,7 @@ namespace IkuyoPet.Core.Dashboard;
 public sealed class DashboardQueryService(
     IEventRepository repository,
     TimeZoneInfo? timeZone = null)
+    : IDashboardQueryService
 {
     public async Task<DashboardSnapshot> GetAsync(
         DateOnly day,

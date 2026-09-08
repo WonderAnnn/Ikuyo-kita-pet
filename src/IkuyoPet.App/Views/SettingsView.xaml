@@ -1,0 +1,9 @@
+<UserControl x:Class="IkuyoPet.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="设置"/>
+        <CheckBox Margin="0,22,0,0" Content="启用透明桌宠；关闭后使用 Windows 通知" IsChecked="{Binding PetEnabled, Mode=TwoWay}"/>
+        <TextBlock Margin="0,16,0,0" Foreground="#FF68778D" Text="白名单、开机启动和 CSV 导出将在后续任务接入。" TextWrapping="Wrap"/>
+    </StackPanel>
+</UserControl>

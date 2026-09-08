@@ -8,7 +8,34 @@ public sealed record TimelineItem(
     string Channel,
     ReminderOutcome Outcome,
     DateTimeOffset? ActionAt,
-    int RetryIndex);
+    int RetryIndex)
+{
+    public string KindText => Kind switch
+    {
+        "water" or "hydration" => "喝水",
+        "activity" or "move" => "活动",
+        "work" => "工作",
+        _ => Kind,
+    };
+
+    public string ChannelText => Channel switch
+    {
+        "pet" => "桌宠",
+        "notification" => "Windows 通知",
+        _ => Channel,
+    };
+
+    public string OutcomeText => Outcome switch
+    {
+        ReminderOutcome.Completed => "完成",
+        ReminderOutcome.Snoozed => "搁置",
+        ReminderOutcome.Skipped => "跳过",
+        ReminderOutcome.Unanswered => "未响应",
+        ReminderOutcome.None => "待处理",
+        ReminderOutcome.Suppressed => "已抑制",
+        _ => Outcome.ToString(),
+    };
+}
 
 public sealed record DashboardSnapshot(
     DateOnly Day,
