@@ -6,15 +6,21 @@ namespace IkuyoPet.Infrastructure.Windows;
 
 public sealed class ForegroundActivityProbe : IActivityProbe
 {
-    private readonly HashSet<string> _whitelist;
+    private readonly Func<string, bool> _isWhitelisted;
     private readonly TimeProvider _timeProvider;
 
     public ForegroundActivityProbe(
         IEnumerable<string> whitelist,
         TimeProvider? timeProvider = null)
+        : this(CreateWhitelistPredicate(whitelist), timeProvider)
     {
-        ArgumentNullException.ThrowIfNull(whitelist);
-        _whitelist = new HashSet<string>(whitelist, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public ForegroundActivityProbe(
+        Func<string, bool> isWhitelisted,
+        TimeProvider? timeProvider = null)
+    {
+        _isWhitelisted = isWhitelisted ?? throw new ArgumentNullException(nameof(isWhitelisted));
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -45,10 +51,17 @@ public sealed class ForegroundActivityProbe : IActivityProbe
 
         return new ActivitySample(
             processName,
-            _whitelist.Contains(processName),
+            _isWhitelisted(processName),
             false,
             ReadIdleTime(),
             observedAt);
+    }
+
+    private static Func<string, bool> CreateWhitelistPredicate(IEnumerable<string> whitelist)
+    {
+        ArgumentNullException.ThrowIfNull(whitelist);
+        var set = new HashSet<string>(whitelist, StringComparer.OrdinalIgnoreCase);
+        return processName => set.Contains(processName);
     }
 
     private static TimeSpan ReadIdleTime()

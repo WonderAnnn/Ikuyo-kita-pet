@@ -18,6 +18,7 @@ public partial class MainWindow : Window
         if (DataContext is MainWindowViewModel viewModel)
         {
             await viewModel.LoadTodayAsync(DateOnly.FromDateTime(DateTime.Today));
+            await viewModel.LoadSettingsAsync();
         }
     }
 

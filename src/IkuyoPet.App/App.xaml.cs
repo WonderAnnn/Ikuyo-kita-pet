@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Windows;
@@ -18,6 +19,8 @@ public partial class App : Application
     private WindowsAppNotificationSink? notificationSink;
     private CancellationTokenSource? lifetimeCancellation;
     private Task? reminderTask;
+    private WorkTrackingLoop? workTrackingLoop;
+    private Task? workTrackingTask;
 
     private void OnStartup(object sender, StartupEventArgs e)
     {
@@ -30,7 +33,11 @@ public partial class App : Application
         new DatabaseMigrator(connectionString).MigrateAsync().GetAwaiter().GetResult();
         var repository = new SqliteEventRepository(connectionString);
         var dashboard = new DashboardQueryService(repository);
-        var viewModel = new MainWindowViewModel(dashboard);
+        var startupManager = new WindowsStartupManager(
+            new CurrentUserStartupEntryStore(),
+            Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "IkuyoPet.exe"));
+        var viewModel = new MainWindowViewModel(dashboard, repository, startupManager);
+        viewModel.LoadSettingsAsync(CancellationToken.None).GetAwaiter().GetResult();
         var window = new MainWindow(viewModel);
         petWindow = new PetWindow();
         var actionCoordinator = new ReminderActionCoordinator(
@@ -42,6 +49,12 @@ public partial class App : Application
         var petPresenter = new PetReminderPresenter(petWindow);
         var router = new ReminderPresentationRouter(petPresenter, notificationPresenter);
         DateTimeOffset? pausedUntil = null;
+        workTrackingLoop = new WorkTrackingLoop(
+            new WorkTrackingService(
+                new ForegroundActivityProbe(viewModel.IsTrackedProcess),
+                repository,
+                displayNameResolver: viewModel.GetTrackedDisplayName));
+
         var reminderLoop = new ReminderLoop(
             repository,
             router,
@@ -67,6 +80,7 @@ public partial class App : Application
             exitApplication: Shutdown);
         lifetimeCancellation = new CancellationTokenSource();
         reminderTask = RunReminderLoopAsync(reminderLoop, lifetimeCancellation.Token);
+        workTrackingTask = RunWorkTrackingLoopAsync(workTrackingLoop, lifetimeCancellation.Token);
         petWindow.Show();
         window.Closed += (_, _) => trayIconHost?.Dispose();
         MainWindow = window;
@@ -78,18 +92,40 @@ public partial class App : Application
         lifetimeCancellation?.Cancel();
         try
         {
-            reminderTask?.GetAwaiter().GetResult();
+            WaitForShutdown(reminderTask, "reminder loop");
+            WaitForShutdown(workTrackingTask, "work tracking loop");
+        }
+        finally
+        {
+            notificationSink?.Dispose();
+            trayIconHost?.Dispose();
+            petWindow?.Close();
+            lifetimeCancellation?.Dispose();
+            base.OnExit(e);
+        }
+    }
+
+    private static void WaitForShutdown(Task? task, string component)
+    {
+        if (task is null) return;
+        try
+        {
+            task.GetAwaiter().GetResult();
         }
         catch (OperationCanceledException)
         {
             // Expected during application shutdown.
         }
+        catch (Exception exception)
+        {
+            Debug.WriteLine($"{component} stopped with an error: {exception}");
+        }
+    }
 
-        notificationSink?.Dispose();
-        trayIconHost?.Dispose();
-        petWindow?.Close();
-        lifetimeCancellation?.Dispose();
-        base.OnExit(e);
+    private static async Task RunWorkTrackingLoopAsync(WorkTrackingLoop? loop, CancellationToken cancellationToken)
+    {
+        if (loop is null) return;
+        await loop.RunAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task RunReminderLoopAsync(ReminderLoop loop, CancellationToken cancellationToken)

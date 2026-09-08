@@ -3,31 +3,49 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using IkuyoPet.Core.Dashboard;
+using IkuyoPet.Core.Storage;
+using IkuyoPet.Core.WorkTracking;
+using IkuyoPet.Infrastructure.Windows;
 
 namespace IkuyoPet.App;
 
 public sealed class MainWindowViewModel : INotifyPropertyChanged
 {
     private readonly IDashboardQueryService dashboard;
+    private readonly IEventRepository? repository;
+    private readonly WindowsStartupManager? startupManager;
     private readonly MainWindowState navigation = new();
     private DashboardSnapshot? todaySnapshot;
     private bool petEnabled = true;
     private string kindFilter = "全部";
     private string outcomeFilter = "全部结果";
     private DateTime selectedDate = DateTime.Today;
+    private IReadOnlyList<TrackedApplication> trackedApplications = [];
+    private string newProcessName = string.Empty;
+    private string newDisplayName = string.Empty;
+    private bool startupEnabled;
+    private string startupStatus = string.Empty;
+    private string settingsStatus = string.Empty;
 
-    public MainWindowViewModel(IDashboardQueryService dashboard)
+    public MainWindowViewModel(
+        IDashboardQueryService dashboard,
+        IEventRepository? repository = null,
+        WindowsStartupManager? startupManager = null)
     {
         this.dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
+        this.repository = repository;
+        this.startupManager = startupManager;
         NavigateCommand = new RelayCommand(parameter =>
         {
             if (parameter is string page && Enum.TryParse<MainWindowPage>(page, out var selected)) Navigate(selected);
         });
+        AddTrackedApplicationCommand = new AsyncRelayCommand(AddTrackedApplicationAsync);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public MainWindowPage CurrentPage => navigation.CurrentPage;
     public ICommand NavigateCommand { get; }
+    public ICommand AddTrackedApplicationCommand { get; }
     public DashboardSnapshot? TodaySnapshot
     {
         get => todaySnapshot;
@@ -70,6 +88,115 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => petEnabled;
         set { if (petEnabled == value) return; petEnabled = value; OnPropertyChanged(); }
     }
+    public IReadOnlyList<TrackedApplication> TrackedApplications
+    {
+        get => trackedApplications;
+        private set { trackedApplications = value; OnPropertyChanged(); }
+    }
+
+    public string NewProcessName
+    {
+        get => newProcessName;
+        set { if (newProcessName == value) return; newProcessName = value; OnPropertyChanged(); }
+    }
+
+    public string NewDisplayName
+    {
+        get => newDisplayName;
+        set { if (newDisplayName == value) return; newDisplayName = value; OnPropertyChanged(); }
+    }
+
+    public bool StartupEnabled
+    {
+        get => startupEnabled;
+        set
+        {
+            if (startupEnabled == value) return;
+            startupEnabled = value;
+            OnPropertyChanged();
+            if (startupManager is null) return;
+            var result = startupManager.SetEnabled(value);
+            if (!result.Success)
+            {
+                startupEnabled = !value;
+                OnPropertyChanged(nameof(StartupEnabled));
+            }
+            StartupStatus = result.Success
+                ? (value ? "已启用当前用户开机启动。" : "已关闭当前用户开机启动。")
+                : $"开机启动设置失败：{result.ErrorMessage}";
+        }
+    }
+
+    public string SettingsStatus
+    {
+        get => settingsStatus;
+        private set { if (settingsStatus == value) return; settingsStatus = value; OnPropertyChanged(); }
+    }
+
+    public string StartupStatus
+    {
+        get => startupStatus;
+        private set { if (startupStatus == value) return; startupStatus = value; OnPropertyChanged(); }
+    }
+
+    public string? GetTrackedDisplayName(string processName) =>
+        trackedApplications.FirstOrDefault(application =>
+            application.Enabled && string.Equals(application.ProcessName, processName, StringComparison.OrdinalIgnoreCase))?.DisplayName;
+
+    public bool IsTrackedProcess(string processName) =>
+        trackedApplications.Any(application =>
+            application.Enabled && string.Equals(application.ProcessName, processName, StringComparison.OrdinalIgnoreCase));
+
+    public async Task LoadSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        if (repository is null) return;
+        var applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
+        if (applications.Count == 0)
+        {
+            await repository.UpsertTrackedApplicationAsync(
+                new TrackedApplication("pycharm64", "PyCharm", true),
+                cancellationToken);
+            applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
+        }
+
+        TrackedApplications = applications;
+        if (startupManager is not null)
+        {
+            var startupState = startupManager.ReadStatus();
+            startupEnabled = startupState.Enabled;
+            OnPropertyChanged(nameof(StartupEnabled));
+            StartupStatus = startupState.Success
+                ? string.Empty
+                : "读取开机启动状态失败：" + startupState.ErrorMessage;
+        }
+    }
+
+    private async Task AddTrackedApplicationAsync()
+    {
+        if (repository is null) return;
+        var processName = NewProcessName.Trim();
+        var displayName = NewDisplayName.Trim();
+        if (processName.Length == 0 || displayName.Length == 0)
+        {
+            SettingsStatus = "请填写进程名和显示名。";
+            return;
+        }
+
+        try
+        {
+            await repository.UpsertTrackedApplicationAsync(
+                new TrackedApplication(processName, displayName, true),
+                CancellationToken.None);
+            TrackedApplications = await repository.ReadTrackedApplicationsAsync(CancellationToken.None);
+            NewProcessName = string.Empty;
+            NewDisplayName = string.Empty;
+            SettingsStatus = $"已添加 {displayName}，满足条件后开始统计。";
+        }
+        catch (Exception exception)
+        {
+            SettingsStatus = $"白名单保存失败：{exception.Message}";
+        }
+    }
     public string NextReminderText
     {
         get
@@ -100,6 +227,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HydrationText));
         OnPropertyChanged(nameof(ActivityText));
         OnPropertyChanged(nameof(WorkDurationText));
+    }
+
+    private sealed class AsyncRelayCommand(Func<Task> execute) : ICommand
+    {
+        private bool isExecuting;
+        public event EventHandler? CanExecuteChanged;
+        public bool CanExecute(object? parameter) => !isExecuting;
+        public async void Execute(object? parameter)
+        {
+            if (isExecuting) return;
+            isExecuting = true;
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            try { await execute(); }
+            finally
+            {
+                isExecuting = false;
+                CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
     }
 
     private sealed class RelayCommand(Action<object?> execute) : ICommand

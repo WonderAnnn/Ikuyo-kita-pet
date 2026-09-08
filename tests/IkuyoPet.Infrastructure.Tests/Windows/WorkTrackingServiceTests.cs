@@ -30,6 +30,20 @@ public sealed class WorkTrackingServiceTests
     }
 
     [Fact]
+    public async Task DoesNotCountLongSamplingGapAsWorkOrSleep()
+    {
+        var start = new DateTimeOffset(2026, 9, 8, 10, 0, 0, TimeSpan.FromHours(8));
+        var repository = await RunAsync(
+            new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start),
+            new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(30)),
+            new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start.AddHours(8)));
+
+        var session = Assert.Single(repository.Sessions);
+        Assert.Equal(30, session.ActiveSeconds);
+        Assert.Equal("sampling-gap", session.EndReason);
+    }
+
+    [Fact]
     public async Task EndsSessionWhenWorkstationBecomesLocked()
     {
         var start = new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.FromHours(8));

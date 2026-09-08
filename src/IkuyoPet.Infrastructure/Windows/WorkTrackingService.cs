@@ -8,6 +8,8 @@ public sealed class WorkTrackingService
     private readonly IActivityProbe _probe;
     private readonly IEventRepository _repository;
     private readonly TimeSpan _idleLimit;
+    private readonly Func<string, string?> _displayNameResolver;
+    private readonly TimeSpan _maxSampleGap;
     private ActivitySample? _previous;
     private DateTimeOffset? _sessionStartedAt;
     private string? _processName;
@@ -16,14 +18,19 @@ public sealed class WorkTrackingService
     public WorkTrackingService(
         IActivityProbe probe,
         IEventRepository repository,
-        TimeSpan? idleLimit = null)
+        TimeSpan? idleLimit = null,
+        Func<string, string?>? displayNameResolver = null,
+        TimeSpan? maxSampleGap = null)
     {
         ArgumentNullException.ThrowIfNull(probe);
         ArgumentNullException.ThrowIfNull(repository);
         _probe = probe;
         _repository = repository;
         _idleLimit = idleLimit ?? TimeSpan.FromMinutes(5);
+        _displayNameResolver = displayNameResolver ?? (processName => processName);
+        _maxSampleGap = maxSampleGap ?? TimeSpan.FromMinutes(2);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_idleLimit, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_maxSampleGap, TimeSpan.Zero);
     }
 
     public async Task SampleOnceAsync(CancellationToken cancellationToken)
@@ -74,11 +81,17 @@ public sealed class WorkTrackingService
                !current.IsLocked &&
                previous.IdleTime < _idleLimit &&
                current.IdleTime < _idleLimit &&
-               elapsed > TimeSpan.Zero;
+               elapsed > TimeSpan.Zero &&
+               elapsed <= _maxSampleGap;
     }
 
     private string GetEndReason(ActivitySample? previous, ActivitySample current)
     {
+        if (previous is not null && current.ObservedAt - previous.ObservedAt > _maxSampleGap)
+        {
+            return "sampling-gap";
+        }
+
         if (current.IsLocked)
         {
             return "locked";
@@ -113,7 +126,7 @@ public sealed class WorkTrackingService
                 new WorkSession(
                     Guid.NewGuid(),
                     processName,
-                    processName,
+                    _displayNameResolver(processName) ?? processName,
                     startedAt,
                     endedAt,
                     _activeSeconds,

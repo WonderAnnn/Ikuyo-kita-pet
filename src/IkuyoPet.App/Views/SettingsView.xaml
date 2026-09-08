@@ -4,6 +4,22 @@
     <StackPanel>
         <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="设置"/>
         <CheckBox Margin="0,22,0,0" Content="启用透明桌宠；关闭后使用 Windows 通知" IsChecked="{Binding PetEnabled, Mode=TwoWay}"/>
-        <TextBlock Margin="0,16,0,0" Foreground="#FF68778D" Text="白名单、开机启动和 CSV 导出将在后续任务接入。" TextWrapping="Wrap"/>
+        <CheckBox Margin="0,16,0,0" Content="登录 Windows 时启动 Ikuyo Pet（仅当前用户）" IsChecked="{Binding StartupEnabled, Mode=TwoWay}"/>
+        <TextBlock Margin="0,8,0,0" Foreground="#FF68778D" Text="{Binding StartupStatus}" TextWrapping="Wrap"/>
+        <TextBlock Margin="0,4,0,0" Foreground="#FF68778D" Text="{Binding SettingsStatus}" TextWrapping="Wrap"/>
+        <TextBlock Margin="0,20,0,6" FontWeight="SemiBold" Text="有效工作统计白名单"/>
+        <StackPanel Orientation="Horizontal">
+            <TextBox Width="150" Margin="0,0,8,0" Text="{Binding NewProcessName, UpdateSourceTrigger=PropertyChanged}" ToolTip="进程名，例如 pycharm64"/>
+            <TextBox Width="150" Margin="0,0,8,0" Text="{Binding NewDisplayName, UpdateSourceTrigger=PropertyChanged}" ToolTip="显示名，例如 PyCharm"/>
+            <Button Content="添加" Command="{Binding AddTrackedApplicationCommand}" Padding="12,4"/>
+        </StackPanel>
+        <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding TrackedApplications}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal"><TextBlock Margin="0,2" Foreground="#FF68778D" Text="{Binding DisplayName}"/><TextBlock Margin="0,2" Foreground="#FF9AA8B8" Text="  ("/><TextBlock Margin="0,2" Foreground="#FF9AA8B8" Text="{Binding ProcessName}"/><TextBlock Margin="0,2" Foreground="#FF9AA8B8" Text=")"/></StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Margin="0,12,0,0" Foreground="#FF68778D" Text="只统计白名单应用位于前台、电脑未锁屏且近 5 分钟有操作的时间；不记录睡眠。" TextWrapping="Wrap"/>
     </StackPanel>
 </UserControl>
