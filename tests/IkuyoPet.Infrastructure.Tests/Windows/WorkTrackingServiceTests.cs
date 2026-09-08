@@ -156,6 +156,12 @@ public sealed class WorkTrackingServiceTests
             int expectedRetryIndex,
             CancellationToken cancellationToken) => Task.FromResult(false);
 
+        public Task<bool> UpdateReminderChannelAsync(
+            Guid id,
+            string expectedChannel,
+            string channel,
+            CancellationToken cancellationToken) => Task.FromResult(false);
+
         public Task AppendWorkSessionAsync(WorkSession session, CancellationToken cancellationToken)
         {
             Sessions.Add(session);

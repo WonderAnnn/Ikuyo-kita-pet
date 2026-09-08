@@ -84,8 +84,19 @@ public sealed class ReminderLoop
                 null,
                 now);
             await repository.AppendReminderAsync(item, cancellationToken);
+            var channel = await router.ShowAsync(due, petEnabled, cancellationToken);
+            if (channel != item.Channel &&
+                !await repository.UpdateReminderChannelAsync(
+                    item.Id,
+                    item.Channel,
+                    channel,
+                    cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"Reminder event '{item.Id}' channel could not be updated.");
+            }
+
             lastDisplayedAt[rule.Id] = now;
-            await router.ShowAsync(due, petEnabled, cancellationToken);
         }
     }
 }

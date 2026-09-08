@@ -26,6 +26,12 @@ public interface IEventRepository
             expectedRetryIndex,
             cancellationToken);
 
+    Task<bool> UpdateReminderChannelAsync(
+        Guid id,
+        string expectedChannel,
+        string channel,
+        CancellationToken cancellationToken);
+
     Task AppendWorkSessionAsync(WorkSession session, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ReminderEvent>> ReadReminderEventsAsync(

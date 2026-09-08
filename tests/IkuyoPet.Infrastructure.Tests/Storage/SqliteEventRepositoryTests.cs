@@ -29,6 +29,57 @@ public sealed class SqliteEventRepositoryTests
     }
 
     [Fact]
+    public async Task UpdatesReminderChannelWithoutReplacingEventData()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var displayedAt = DateTimeOffset.Parse(
+            "2026-09-06T10:20:00+08:00",
+            CultureInfo.InvariantCulture);
+        var ruleId = Guid.NewGuid();
+        await repository.UpsertReminderRuleAsync(
+            new ReminderRule(
+                ruleId,
+                "water",
+                "喝口水",
+                new TimeOnly(9, 0),
+                new TimeOnly(18, 0),
+                30,
+                true),
+            TestContext.Current.CancellationToken);
+        var item = new ReminderEvent(
+            Guid.NewGuid(),
+            ruleId,
+            displayedAt,
+            displayedAt,
+            "pet",
+            ReminderOutcome.None,
+            null,
+            0,
+            null,
+            displayedAt);
+        await repository.AppendReminderAsync(item, TestContext.Current.CancellationToken);
+
+        var updated = await repository.UpdateReminderChannelAsync(
+            item.Id,
+            "pet",
+            "notification",
+            TestContext.Current.CancellationToken);
+        var duplicate = await repository.UpdateReminderChannelAsync(
+            item.Id,
+            "pet",
+            "notification",
+            TestContext.Current.CancellationToken);
+        var stored = await repository.ReadReminderEventAsync(
+            item.Id,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(updated);
+        Assert.False(duplicate);
+        Assert.Equal(item with { Channel = "notification" }, stored);
+    }
+
+    [Fact]
     public async Task SavesWorkSessionAgainstTrackedApplication()
     {
         await using var database = TestDatabase.CreateInMemory();

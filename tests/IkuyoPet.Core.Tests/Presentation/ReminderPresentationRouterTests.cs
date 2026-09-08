@@ -15,8 +15,12 @@ public sealed class ReminderPresentationRouterTests
         var notification = new RecordingPresenter("notification");
         var router = new ReminderPresentationRouter(pet, notification);
 
-        await router.ShowAsync(CreateDue(), petEnabled, TestContext.Current.CancellationToken);
+        var channel = await router.ShowAsync(
+            CreateDue(),
+            petEnabled,
+            TestContext.Current.CancellationToken);
 
+        Assert.Equal(expected, channel);
         Assert.Equal(expected, pet.LastChannel ?? notification.LastChannel);
         Assert.Equal(petEnabled, pet.LastDue is not null);
         Assert.Equal(!petEnabled, notification.LastDue is not null);
@@ -29,8 +33,12 @@ public sealed class ReminderPresentationRouterTests
         var notification = new RecordingPresenter("notification");
         var router = new ReminderPresentationRouter(pet, notification);
 
-        await router.ShowAsync(CreateDue(), petEnabled: true, TestContext.Current.CancellationToken);
+        var channel = await router.ShowAsync(
+            CreateDue(),
+            petEnabled: true,
+            TestContext.Current.CancellationToken);
 
+        Assert.Equal("notification", channel);
         Assert.True(pet.Attempted);
         Assert.Equal("notification", notification.LastChannel);
         Assert.Equal(pet.LastDue, notification.LastDue);

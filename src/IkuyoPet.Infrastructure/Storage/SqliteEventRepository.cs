@@ -95,6 +95,32 @@ public sealed class SqliteEventRepository(
         return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
 
+    public async Task<bool> UpdateReminderChannelAsync(
+        Guid id,
+        string expectedChannel,
+        string channel,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(expectedChannel);
+        ArgumentException.ThrowIfNullOrWhiteSpace(channel);
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE reminder_events
+            SET channel = $channel
+            WHERE id = $id
+              AND channel = $expected_channel;
+            """;
+        AddText(command, "$channel", channel);
+        AddText(command, "$id", id.ToString("N"));
+        AddText(command, "$expected_channel", expectedChannel);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
     public async Task AppendWorkSessionAsync(
         WorkSession session,
         CancellationToken cancellationToken)

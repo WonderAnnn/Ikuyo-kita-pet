@@ -287,6 +287,12 @@ public sealed class DashboardQueryServiceTests
             int expectedRetryIndex,
             CancellationToken cancellationToken) => Task.FromResult(false);
 
+        public Task<bool> UpdateReminderChannelAsync(
+            Guid id,
+            string expectedChannel,
+            string channel,
+            CancellationToken cancellationToken) => Task.FromResult(false);
+
         public Task AppendWorkSessionAsync(WorkSession session, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<IReadOnlyList<ReminderEvent>> ReadReminderEventsAsync(DateOnly day, CancellationToken cancellationToken)

@@ -7,7 +7,7 @@ public sealed class ReminderPresentationRouter(
     public string GetChannel(bool petEnabled) =>
         petEnabled ? petPresenter.Channel : notificationPresenter.Channel;
 
-    public async Task ShowAsync(
+    public async Task<string> ShowAsync(
         ReminderDue due,
         bool petEnabled,
         CancellationToken cancellationToken)
@@ -18,10 +18,12 @@ public sealed class ReminderPresentationRouter(
         try
         {
             await selected.ShowAsync(due, cancellationToken);
+            return selected.Channel;
         }
         catch when (petEnabled && !cancellationToken.IsCancellationRequested)
         {
             await notificationPresenter.ShowAsync(due, cancellationToken);
+            return notificationPresenter.Channel;
         }
     }
 }

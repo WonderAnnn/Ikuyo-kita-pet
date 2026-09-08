@@ -130,6 +130,40 @@ public sealed class ReminderLoopTests
         Assert.Equal(["pet", "notification"], repository.Events.Select(item => item.Channel));
     }
 
+    [Fact]
+    public async Task FailedPresentationDoesNotAdvanceIntervalAndCanBeRetried()
+    {
+        var now = new DateTimeOffset(2026, 9, 7, 10, 0, 0, TimeSpan.FromHours(8));
+        var repository = new ReminderRepositoryStub([CreateRule(enabled: true)]);
+        var pet = new RecordingPresenter("pet", repository, shouldThrow: true);
+        var notification = new RecordingPresenter("notification", repository, shouldThrow: true);
+        var loop = CreateLoop(repository, pet, notification, now, petEnabled: true);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            loop.ProcessOnceAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            loop.ProcessOnceAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, pet.Attempts);
+        Assert.Equal(2, notification.Attempts);
+        Assert.Equal(2, repository.Events.Count);
+    }
+
+    [Fact]
+    public async Task PetFallbackUpdatesPersistedEventToNotificationChannel()
+    {
+        var now = new DateTimeOffset(2026, 9, 7, 10, 0, 0, TimeSpan.FromHours(8));
+        var repository = new ReminderRepositoryStub([CreateRule(enabled: true)]);
+        var pet = new RecordingPresenter("pet", repository, shouldThrow: true);
+        var notification = new RecordingPresenter("notification", repository);
+        var loop = CreateLoop(repository, pet, notification, now, petEnabled: true);
+
+        await loop.ProcessOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("notification", Assert.Single(repository.Events).Channel);
+        Assert.True(notification.RepositoryContainedEventWhenShown);
+    }
+
     private static ReminderLoop CreateLoop(
         ReminderRepositoryStub repository,
         IReminderPresenter pet,
@@ -161,7 +195,8 @@ public sealed class ReminderLoopTests
 
     private sealed class RecordingPresenter(
         string channel,
-        ReminderRepositoryStub repository) : IReminderPresenter
+        ReminderRepositoryStub repository,
+        bool shouldThrow = false) : IReminderPresenter
     {
         public string Channel { get; } = channel;
 
@@ -169,11 +204,19 @@ public sealed class ReminderLoopTests
 
         public bool RepositoryContainedEventWhenShown { get; private set; }
 
+        public int Attempts { get; private set; }
+
         public Task ShowAsync(ReminderDue due, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Attempts++;
             RepositoryContainedEventWhenShown = repository.Events.Any(item => item.Id == due.EventId);
             DueItems.Add(due);
+            if (shouldThrow)
+            {
+                throw new InvalidOperationException($"{Channel} unavailable");
+            }
+
             return Task.CompletedTask;
         }
     }
@@ -220,6 +263,25 @@ internal sealed class ReminderRepositoryStub(IReadOnlyList<ReminderRule> rules) 
         }
 
         Events[index] = item;
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> UpdateReminderChannelAsync(
+        Guid id,
+        string expectedChannel,
+        string channel,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var index = Events.FindIndex(candidate =>
+            candidate.Id == id &&
+            candidate.Channel == expectedChannel);
+        if (index < 0)
+        {
+            return Task.FromResult(false);
+        }
+
+        Events[index] = Events[index] with { Channel = channel };
         return Task.FromResult(true);
     }
 
