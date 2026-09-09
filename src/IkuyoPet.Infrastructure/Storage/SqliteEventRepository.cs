@@ -87,7 +87,8 @@ public sealed class SqliteEventRepository(
             UPDATE reminder_events
             SET action = $action,
                 action_at = $action_at,
-                retry_index = $retry_index
+                retry_index = $retry_index,
+                suppressed_reason = $suppressed_reason
             WHERE id = $id
               AND action = $expected_action
               AND retry_index = $expected_retry_index;
@@ -95,6 +96,7 @@ public sealed class SqliteEventRepository(
         AddText(command, "$action", ToDbOutcome(item.Outcome));
         AddNullableText(command, "$action_at", ToDbTimestamp(item.ActionAt));
         command.Parameters.AddWithValue("$retry_index", item.RetryIndex);
+        AddNullableText(command, "$suppressed_reason", item.SuppressedReason);
         AddText(command, "$id", item.Id.ToString("N"));
         AddText(command, "$expected_action", ToDbOutcome(expectedOutcome));
         command.Parameters.AddWithValue("$expected_retry_index", expectedRetryIndex);
@@ -408,6 +410,60 @@ public sealed class SqliteEventRepository(
         AddNullableText(command, "$retry_due_at", ToDbTimestamp(state.RetryDueAt));
         AddText(command, "$updated_at", ToDbTimestamp(state.UpdatedAt));
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<bool> TryUpdateReminderRuntimeStateAsync(
+        ReminderRuntimeState expected,
+        ReminderRuntimeState updated,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(updated);
+        if (expected.RuleId != updated.RuleId)
+        {
+            throw new ArgumentException("Runtime states must belong to the same rule.", nameof(updated));
+        }
+
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE reminder_runtime_state
+            SET cycle_id = $next_cycle_id,
+                target_active_seconds = $next_target_active_seconds,
+                accumulated_active_seconds = $next_accumulated_active_seconds,
+                state = $next_state,
+                attempt = $next_attempt,
+                retry_due_at = $next_retry_due_at,
+                updated_at = $next_updated_at
+            WHERE rule_id = $expected_rule_id
+              AND cycle_id = $expected_cycle_id
+              AND target_active_seconds = $expected_target_active_seconds
+              AND accumulated_active_seconds = $expected_accumulated_active_seconds
+              AND state = $expected_state
+              AND attempt = $expected_attempt
+              AND ((retry_due_at = $expected_retry_due_at)
+                   OR (retry_due_at IS NULL AND $expected_retry_due_at IS NULL))
+              AND updated_at = $expected_updated_at;
+            """;
+        AddText(command, "$next_cycle_id", updated.CycleId.ToString("N"));
+        command.Parameters.AddWithValue("$next_target_active_seconds", updated.TargetActiveSeconds);
+        command.Parameters.AddWithValue("$next_accumulated_active_seconds", updated.AccumulatedActiveSeconds);
+        AddText(command, "$next_state", ToDbRuntimeStatus(updated.Status));
+        command.Parameters.AddWithValue("$next_attempt", updated.Attempt);
+        AddNullableText(command, "$next_retry_due_at", ToDbTimestamp(updated.RetryDueAt));
+        AddText(command, "$next_updated_at", ToDbTimestamp(updated.UpdatedAt));
+        AddText(command, "$expected_rule_id", expected.RuleId.ToString("N"));
+        AddText(command, "$expected_cycle_id", expected.CycleId.ToString("N"));
+        command.Parameters.AddWithValue("$expected_target_active_seconds", expected.TargetActiveSeconds);
+        command.Parameters.AddWithValue("$expected_accumulated_active_seconds", expected.AccumulatedActiveSeconds);
+        AddText(command, "$expected_state", ToDbRuntimeStatus(expected.Status));
+        command.Parameters.AddWithValue("$expected_attempt", expected.Attempt);
+        AddNullableText(command, "$expected_retry_due_at", ToDbTimestamp(expected.RetryDueAt));
+        AddText(command, "$expected_updated_at", ToDbTimestamp(expected.UpdatedAt));
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
     public async Task<IReadOnlyList<WorkSession>> ReadWorkSessionsAsync(
         DateOnly day,

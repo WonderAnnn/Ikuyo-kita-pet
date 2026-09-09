@@ -50,6 +50,8 @@ dotnet run --project .\src\IkuyoPet.App\IkuyoPet.App.csproj
 
 开源仓库不会包含“喜多郁代”或其他第三方商业动漫角色的图片、立绘、动画、语音等素材。MIT 许可证只覆盖本项目代码和仓库中明确标注可再分发的原创资源，不会授予任何第三方角色或作品的权利。
 
+项目不接受第三方角色素材相关的捐赠、赞助或素材提交。若收到可信权利通知，会停止相关素材的分发并移除；“非商业使用”或“侵权即删除”不等于取得复制和公开传播许可。
+
 用户可以在遵守素材来源许可的前提下，在本机导入自定义皮肤。默认皮肤目录和清单说明见 [`assets/skins/default/README.md`](assets/skins/default/README.md)，清单格式见 [`schemas/skin-manifest.schema.json`](schemas/skin-manifest.schema.json)。
 
 ## 项目结构
@@ -88,6 +90,14 @@ dotnet publish .\src\IkuyoPet.App\IkuyoPet.App.csproj `
 ```
 
 当前仓库尚未提供签名安装包。测试阶段建议直接运行开发构建或自行发布的目录。
+也可以使用仓库脚本发布和检查：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\eng\publish-local.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\eng\verify-dev.ps1 -PublishRoot .\artifacts\publish\win-x64
+```
+
+脚本默认使用 `G:\IkuyoPetDev\dotnet\dotnet.exe` 和 `G:\IkuyoPetDev\nuget\packages`；也可以通过 `IKUYO_PET_DOTNET` 指定其他 .NET 10 SDK。发布目录中的私有皮肤只来自本机 `local-skins/`，该目录已被 `.gitignore` 忽略。
 
 ## 医疗说明
 

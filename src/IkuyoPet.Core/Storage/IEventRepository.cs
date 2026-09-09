@@ -54,6 +54,11 @@ public interface IEventRepository
         ReminderRuntimeState state,
         CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    Task<bool> TryUpdateReminderRuntimeStateAsync(
+        ReminderRuntimeState expected,
+        ReminderRuntimeState updated,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
     Task<IReadOnlyList<WorkSession>> ReadWorkSessionsAsync(
         DateOnly day,
         CancellationToken cancellationToken);

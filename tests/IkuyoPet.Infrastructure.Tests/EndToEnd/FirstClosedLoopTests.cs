@@ -227,6 +227,58 @@ public sealed class FirstClosedLoopTests
             File.Delete(databasePath);
         }
     }
+    [Fact]
+    public async Task ExpiredPendingEventAutomaticallyRetriesOnceAndPersistsSuppressionReason()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"ikuyo-timeout-{Guid.NewGuid():N}.db");
+        try
+        {
+            var repository = new SqliteEventRepository($"Data Source={databasePath}");
+            var now = new DateTimeOffset(2026, 9, 9, 7, 0, 0, TimeSpan.Zero);
+            var clock = new MutableTimeProvider(now);
+            var rule = ReminderRule.CreateDefaultActiveWork(Guid.NewGuid());
+            await repository.UpsertReminderRuleAsync(rule, TestContext.Current.CancellationToken);
+            await repository.UpsertReminderRuntimeStateAsync(
+                new ReminderRuntimeState(rule.Id, Guid.NewGuid(), 2_400, 2_400,
+                    ReminderRuntimeStatus.Due, 1, null, now),
+                TestContext.Current.CancellationToken);
+            var item = new ReminderEvent(
+                Guid.NewGuid(), rule.Id, now.AddMinutes(-6), now.AddMinutes(-6), "pet",
+                ReminderOutcome.None, null, 0, null, now.AddMinutes(-6));
+            await repository.AppendReminderAsync(item, TestContext.Current.CancellationToken);
+            var coordinator = new ReminderActionCoordinator(
+                repository, new ReminderStateMachine(3), clock, new FixedRandom(40));
+            var presenter = new RecordingPresenter();
+            var loop = new ReminderLoop(
+                repository,
+                new ReminderPresentationRouter(presenter, presenter),
+                () => true,
+                clock,
+                TimeZoneInfo.Utc,
+                TimeSpan.Zero,
+                intervalRandom: new FixedRandom(40),
+                actionCoordinator: coordinator);
+
+            await loop.ProcessOnceAsync(TestContext.Current.CancellationToken);
+            var retried = await repository.ReadReminderEventAsync(
+                item.Id, TestContext.Current.CancellationToken);
+            Assert.NotNull(retried);
+            Assert.Equal(ReminderOutcome.None, retried.Outcome);
+            Assert.Equal(1, retried.RetryIndex);
+            Assert.Equal("no-response", retried.SuppressedReason);
+
+            await loop.ProcessOnceAsync(TestContext.Current.CancellationToken);
+            var duplicate = await repository.ReadReminderEventAsync(
+                item.Id, TestContext.Current.CancellationToken);
+            Assert.NotNull(duplicate);
+            Assert.Equal(1, duplicate.RetryIndex);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(databasePath);
+        }
+    }
     private static ReminderLoop CreateLoop(
         SqliteEventRepository repository,
         IReminderPresenter presenter,

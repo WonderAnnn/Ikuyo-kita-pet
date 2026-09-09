@@ -43,16 +43,17 @@ public partial class App : Application
         viewModel.LoadSettingsAsync(CancellationToken.None).GetAwaiter().GetResult();
         var window = new MainWindow(viewModel);
         petWindow = new PetWindow();
-        var skinRoot = ResolveSkinRoot(dataRoot);
         var skinSelectionStore = new SkinSelectionStore(Path.Combine(dataRoot, "skins"));
         var selectedSkin = skinSelectionStore
             .LoadAsync(CancellationToken.None).GetAwaiter().GetResult()
             ?? new SkinSelection("user.ikuyo-local", "1.0.0");
+        var skinRoot = ResolveSkinRoot(dataRoot, selectedSkin);
         var skinResult = new SkinBootstrapper(new SkinPackageValidator(), skinRoot)
             .ResolveWithDiagnostics(selectedSkin);
         if (skinResult.Assets is not null)
         {
             petWindow.SetSkinAssets(skinResult.Assets);
+            skinSelectionStore.SaveAsync(selectedSkin, CancellationToken.None).GetAwaiter().GetResult();
             viewModel.SetCurrentSkin(selectedSkin.Id, selectedSkin.Version, loaded: true);
         }
         else
@@ -142,11 +143,14 @@ public partial class App : Application
         window.Show();
     }
 
-    private static string ResolveSkinRoot(string dataRoot)
+    private static string ResolveSkinRoot(string dataRoot, SkinSelection selection)
     {
         var userRoot = Path.Combine(dataRoot, "skins");
+        var userPackage = Path.Combine(userRoot, selection.Id, selection.Version);
         var bundledRoot = Path.Combine(AppContext.BaseDirectory, "local-skins");
-        return Directory.Exists(userRoot) || !Directory.Exists(bundledRoot) ? userRoot : bundledRoot;
+        return File.Exists(Path.Combine(userPackage, "manifest.json")) || !Directory.Exists(bundledRoot)
+            ? userRoot
+            : bundledRoot;
     }
     protected override void OnExit(ExitEventArgs e)
     {

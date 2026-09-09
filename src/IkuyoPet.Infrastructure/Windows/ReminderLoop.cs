@@ -19,6 +19,7 @@ public sealed class ReminderLoop
     private readonly IReminderIntervalRandom intervalRandom;
     private readonly Func<bool> isSuppressed;
     private readonly TimeSpan suppressionRecoveryDelay;
+    private readonly ReminderActionCoordinator? actionCoordinator;
     private bool suppressionObserved;
     private DateTimeOffset? recoveryStartedAt;
     private readonly Dictionary<Guid, DateTimeOffset> legacyLastDisplayedAt = [];
@@ -33,7 +34,8 @@ public sealed class ReminderLoop
         Func<bool>? isPaused = null,
         IReminderIntervalRandom? intervalRandom = null,
         Func<bool>? isSuppressed = null,
-        TimeSpan? suppressionRecoveryDelay = null)
+        TimeSpan? suppressionRecoveryDelay = null,
+        ReminderActionCoordinator? actionCoordinator = null)
     {
         this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         this.router = router ?? throw new ArgumentNullException(nameof(router));
@@ -45,6 +47,7 @@ public sealed class ReminderLoop
         this.intervalRandom = intervalRandom ?? SharedIntervalRandom.Instance;
         this.isSuppressed = isSuppressed ?? (() => false);
         this.suppressionRecoveryDelay = suppressionRecoveryDelay ?? TimeSpan.FromMinutes(2);
+        this.actionCoordinator = actionCoordinator;
         ArgumentOutOfRangeException.ThrowIfLessThan(this.tickInterval, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThan(this.suppressionRecoveryDelay, TimeSpan.Zero);
     }
@@ -71,10 +74,35 @@ public sealed class ReminderLoop
         var rules = await ReadRulesEnsuringDefaultAsync(cancellationToken).ConfigureAwait(false);
         foreach (var rule in rules.Where(static candidate => candidate.Enabled))
         {
-            var scheduler = await LoadSchedulerAsync(rule, cancellationToken).ConfigureAwait(false);
-            scheduler.ObserveActiveSeconds(delta.ActiveSeconds);
-            await repository.UpsertReminderRuntimeStateAsync(scheduler.State, cancellationToken)
+            var previous = await repository.ReadReminderRuntimeStateAsync(rule.Id, cancellationToken)
                 .ConfigureAwait(false);
+            var scheduler = new ActiveWorkReminderScheduler(
+                rule,
+                intervalRandom,
+                previous,
+                new TimeProviderReminderClock(timeProvider));
+            if (previous is null) scheduler.StartNewCycle();
+            scheduler.ObserveActiveSeconds(delta.ActiveSeconds);
+            if (previous is null)
+            {
+                await repository.UpsertReminderRuntimeStateAsync(scheduler.State, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else if (scheduler.State != previous)
+            {
+                try
+                {
+                    await repository.TryUpdateReminderRuntimeStateAsync(
+                        previous,
+                        scheduler.State,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (NotSupportedException)
+                {
+                    await repository.UpsertReminderRuntimeStateAsync(scheduler.State, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
         }
     }
 
@@ -85,6 +113,7 @@ public sealed class ReminderLoop
         var rules = await ReadRulesEnsuringDefaultAsync(cancellationToken).ConfigureAwait(false);
         if (isPaused()) return;
         if (!CanPresentAfterSuppression(now)) return;
+        await HandleExpiredPendingAsync(now, cancellationToken).ConfigureAwait(false);
 
         foreach (var rule in rules.Where(static candidate => candidate.Enabled))
         {
@@ -126,6 +155,40 @@ public sealed class ReminderLoop
         }
     }
 
+    private async Task HandleExpiredPendingAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (actionCoordinator is null) return;
+
+        var localDate = DateOnly.FromDateTime(
+            TimeZoneInfo.ConvertTime(now, timeZone).DateTime);
+        IReadOnlyList<ReminderEvent> events;
+        try
+        {
+            events = await repository.ReadReminderEventsAsync(localDate, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (NotSupportedException)
+        {
+            return;
+        }
+
+        var cutoff = now - TimeSpan.FromMinutes(5);
+        foreach (var item in events)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (item.Outcome != ReminderOutcome.None) continue;
+            var displayedAt = item.DisplayedAt ?? item.CreatedAt;
+            if (displayedAt > cutoff) continue;
+
+            await actionCoordinator.HandleAsync(
+                item.Id,
+                ReminderAction.NoResponse,
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     private bool CanPresentAfterSuppression(DateTimeOffset now)
     {
         if (isSuppressed())
@@ -161,20 +224,6 @@ public sealed class ReminderLoop
         }
     }
 
-    private async Task<ActiveWorkReminderScheduler> LoadSchedulerAsync(
-        ReminderRule rule,
-        CancellationToken cancellationToken)
-    {
-        var state = await repository.ReadReminderRuntimeStateAsync(rule.Id, cancellationToken)
-            .ConfigureAwait(false);
-        var scheduler = new ActiveWorkReminderScheduler(
-            rule,
-            intervalRandom,
-            state,
-            new TimeProviderReminderClock(timeProvider));
-        if (state is null) scheduler.StartNewCycle();
-        return scheduler;
-    }
 
     private async Task PresentDueAsync(
         ReminderRule rule,

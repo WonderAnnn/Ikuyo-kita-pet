@@ -41,6 +41,36 @@ public sealed class ReminderRuntimeRepositoryTests
     }
 
     [Fact]
+    public async Task ConditionalRuntimeUpdateRejectsStaleSampler()
+    {
+        await using var database = TestDatabase.CreateInMemory();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var rule = ReminderRule.CreateDefaultActiveWork(Guid.NewGuid());
+        await repository.UpsertReminderRuleAsync(rule, TestContext.Current.CancellationToken);
+        var original = new ReminderRuntimeState(
+            rule.Id, Guid.NewGuid(), 2_700, 1_200,
+            ReminderRuntimeStatus.Accumulating, 0, null,
+            new DateTimeOffset(2026, 9, 9, 8, 20, 0, TimeSpan.Zero));
+        var concurrent = original with
+        {
+            AccumulatedActiveSeconds = 1_500,
+            UpdatedAt = original.UpdatedAt.AddSeconds(30),
+        };
+        var staleNext = original with
+        {
+            AccumulatedActiveSeconds = 1_300,
+            UpdatedAt = original.UpdatedAt.AddSeconds(15),
+        };
+
+        await repository.UpsertReminderRuntimeStateAsync(original, TestContext.Current.CancellationToken);
+        await repository.UpsertReminderRuntimeStateAsync(concurrent, TestContext.Current.CancellationToken);
+
+        Assert.False(await repository.TryUpdateReminderRuntimeStateAsync(
+            original, staleNext, TestContext.Current.CancellationToken));
+        Assert.Equal(concurrent, await repository.ReadReminderRuntimeStateAsync(
+            rule.Id, TestContext.Current.CancellationToken));
+    }
+    [Fact]
     public async Task ExtendedRuleFieldsRoundTrip()
     {
         await using var database = TestDatabase.CreateInMemory();
