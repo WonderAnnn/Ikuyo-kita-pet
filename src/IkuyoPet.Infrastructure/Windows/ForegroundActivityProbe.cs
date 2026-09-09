@@ -8,30 +8,42 @@ public sealed class ForegroundActivityProbe : IActivityProbe
 {
     private readonly Func<string, bool> _isWhitelisted;
     private readonly TimeProvider _timeProvider;
+    private readonly IWindowsSessionProbe _sessionProbe;
 
     public ForegroundActivityProbe(
         IEnumerable<string> whitelist,
-        TimeProvider? timeProvider = null)
-        : this(CreateWhitelistPredicate(whitelist), timeProvider)
+        TimeProvider? timeProvider = null,
+        IWindowsSessionProbe? sessionProbe = null)
+        : this(CreateWhitelistPredicate(whitelist), timeProvider, sessionProbe)
     {
     }
 
     public ForegroundActivityProbe(
         Func<string, bool> isWhitelisted,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IWindowsSessionProbe? sessionProbe = null)
     {
         _isWhitelisted = isWhitelisted ?? throw new ArgumentNullException(nameof(isWhitelisted));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _sessionProbe = sessionProbe ?? new WindowsSessionProbe();
     }
 
     public ActivitySample Capture()
     {
         var observedAt = _timeProvider.GetUtcNow();
         var foregroundWindow = GetForegroundWindow();
+        var sessionState = _sessionProbe.Capture(foregroundWindow);
         if (foregroundWindow == IntPtr.Zero ||
             GetWindowThreadProcessId(foregroundWindow, out var processId) == 0)
         {
-            return new ActivitySample(string.Empty, false, true, TimeSpan.MaxValue, observedAt);
+            return new ActivitySample(
+                string.Empty,
+                false,
+                true,
+                TimeSpan.MaxValue,
+                observedAt,
+                sessionState.IsFullScreen,
+                sessionState.IsPresentationMode);
         }
 
         var processName = string.Empty;
@@ -52,9 +64,11 @@ public sealed class ForegroundActivityProbe : IActivityProbe
         return new ActivitySample(
             processName,
             _isWhitelisted(processName),
-            false,
+            sessionState.IsLocked,
             ReadIdleTime(),
-            observedAt);
+            observedAt,
+            sessionState.IsFullScreen,
+            sessionState.IsPresentationMode);
     }
 
     private static Func<string, bool> CreateWhitelistPredicate(IEnumerable<string> whitelist)

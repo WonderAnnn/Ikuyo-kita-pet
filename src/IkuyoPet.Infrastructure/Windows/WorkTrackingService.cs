@@ -33,10 +33,11 @@ public sealed class WorkTrackingService
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_maxSampleGap, TimeSpan.Zero);
     }
 
-    public async Task SampleOnceAsync(CancellationToken cancellationToken)
+    public async Task<ActiveWorkDelta> SampleOnceAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var current = _probe.Capture();
+        var activeSeconds = 0;
 
         if (_previous is { } previous && IsValidInterval(previous, current))
         {
@@ -47,7 +48,8 @@ public sealed class WorkTrackingService
             }
 
             var elapsed = current.ObservedAt - previous.ObservedAt;
-            _activeSeconds = checked(_activeSeconds + (int)Math.Floor(elapsed.TotalSeconds));
+            activeSeconds = (int)Math.Floor(elapsed.TotalSeconds);
+            _activeSeconds = checked(_activeSeconds + activeSeconds);
         }
         else if (_sessionStartedAt is not null && _previous is { } lastCounted)
         {
@@ -58,6 +60,10 @@ public sealed class WorkTrackingService
         }
 
         _previous = current;
+        return new ActiveWorkDelta(
+            activeSeconds,
+            activeSeconds > 0 ? current.AppName : null,
+            current.ObservedAt);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -79,6 +85,10 @@ public sealed class WorkTrackingService
                current.IsWhitelistedForeground &&
                !previous.IsLocked &&
                !current.IsLocked &&
+               !previous.IsFullScreen &&
+               !current.IsFullScreen &&
+               !previous.IsPresentationMode &&
+               !current.IsPresentationMode &&
                previous.IdleTime < _idleLimit &&
                current.IdleTime < _idleLimit &&
                elapsed > TimeSpan.Zero &&
@@ -95,6 +105,16 @@ public sealed class WorkTrackingService
         if (current.IsLocked)
         {
             return "locked";
+        }
+
+        if (current.IsPresentationMode)
+        {
+            return "presentation";
+        }
+
+        if (current.IsFullScreen)
+        {
+            return "fullscreen";
         }
 
         if (current.IdleTime >= _idleLimit)

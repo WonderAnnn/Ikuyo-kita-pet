@@ -1,14 +1,26 @@
+using IkuyoPet.Core.WorkTracking;
+
 namespace IkuyoPet.Infrastructure.Windows;
 
 public sealed class WorkTrackingLoop
 {
     private readonly WorkTrackingService service;
+    private readonly Func<ActiveWorkDelta, CancellationToken, Task> activeWorkConsumer;
     private readonly TimeSpan sampleInterval;
     private int stopped;
 
     public WorkTrackingLoop(WorkTrackingService service, TimeSpan? sampleInterval = null)
+        : this(service, static (_, _) => Task.CompletedTask, sampleInterval)
+    {
+    }
+
+    public WorkTrackingLoop(
+        WorkTrackingService service,
+        Func<ActiveWorkDelta, CancellationToken, Task> activeWorkConsumer,
+        TimeSpan? sampleInterval = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
+        this.activeWorkConsumer = activeWorkConsumer ?? throw new ArgumentNullException(nameof(activeWorkConsumer));
         this.sampleInterval = sampleInterval ?? TimeSpan.FromSeconds(30);
         ArgumentOutOfRangeException.ThrowIfLessThan(this.sampleInterval, TimeSpan.Zero);
     }
@@ -44,7 +56,8 @@ public sealed class WorkTrackingLoop
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (Volatile.Read(ref stopped) != 0) return;
-        await service.SampleOnceAsync(cancellationToken).ConfigureAwait(false);
+        var delta = await service.SampleOnceAsync(cancellationToken).ConfigureAwait(false);
+        await activeWorkConsumer(delta, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
