@@ -9,6 +9,7 @@
     "language": { "const": "zh-CN" },
     "messages": {
       "type": "array",
+      "minItems": 1,
       "items": { "type": "object", "required": ["id", "text"], "properties": {
         "id": { "type": "integer", "exclusiveMinimum": 0 },
         "text": { "type": "string", "minLength": 1, "maxLength": 160 },
@@ -18,3 +19,4 @@
   },
   "additionalProperties": true
 }
+

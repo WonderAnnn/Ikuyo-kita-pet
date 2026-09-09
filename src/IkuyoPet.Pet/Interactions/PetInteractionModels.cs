@@ -66,7 +66,11 @@ public class PetInteractionCatalogLoader
                 if (message.Id <= 0 || !ids.Add(message.Id) || string.IsNullOrWhiteSpace(text) || text.Length > 160)
                     continue;
 
-                valid.Add(new PetInteractionMessage(message.Id, text, message.Mood));
+                var mood = message.Mood?.Trim();
+                valid.Add(new PetInteractionMessage(
+                    message.Id,
+                    text,
+                    string.IsNullOrWhiteSpace(mood) ? null : mood));
             }
 
             if (valid.Count == 0)
@@ -115,5 +119,4 @@ public class PetInteractionCatalogLoader
 }
 
 public sealed class CatalogLoader : PetInteractionCatalogLoader;
-
 

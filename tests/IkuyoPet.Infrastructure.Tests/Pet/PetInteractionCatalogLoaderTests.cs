@@ -76,11 +76,11 @@ public sealed class PetInteractionCatalogLoaderTests : IDisposable
               "canon_sources": ["ignored"],
               "messages": [
                 { "id": 0, "text": "bad" },
-                { "id": 1, "text": "  第一条  ", "mood": "happy", "unknown": "ignored" },
+                { "id": 1, "text": "  第一条  ", "mood": "  happy  ", "unknown": "ignored" },
                 { "id": 1, "text": "duplicate" },
                 { "id": 2, "text": "" },
                 { "id": 3, "text": "{{longText}}" },
-                { "id": 4, "text": "第二条", "mood": null }
+                { "id": 4, "text": "第二条", "mood": "   " }
               ],
               "unknown": "ignored"
             }
@@ -166,5 +166,4 @@ public sealed class PetInteractionCatalogLoaderTests : IDisposable
         return path;
     }
 }
-
 
