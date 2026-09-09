@@ -46,6 +46,46 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(expectedDay, queryService.RequestedDay);
     }
 
+    [Fact]
+    public async Task RefreshAsyncReloadsTheSelectedDayAfterAnAction()
+    {
+        var day = new DateOnly(2026, 9, 9);
+        var queryService = new SequencedDashboardQueryService(
+            Snapshot(day, completed: 0),
+            Snapshot(day, completed: 1));
+        var viewModel = new MainWindowViewModel(queryService);
+
+        await viewModel.RefreshAsync(day, TestContext.Current.CancellationToken);
+        await viewModel.RefreshAsync(day, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, queryService.RequestCount);
+        Assert.Equal(1, viewModel.Today.CompletedCount);
+    }
+
+    private static DashboardSnapshot Snapshot(DateOnly day, int completed) => new(
+        day,
+        Array.Empty<TimelineItem>(),
+        completed,
+        0,
+        0,
+        0,
+        TimeSpan.Zero);
+
+    private sealed class SequencedDashboardQueryService(params DashboardSnapshot[] snapshots)
+        : IDashboardQueryService
+    {
+        private int index;
+        public int RequestCount { get; private set; }
+
+        public Task<DashboardSnapshot> GetAsync(DateOnly day, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RequestCount++;
+            var snapshot = snapshots[Math.Min(index, snapshots.Length - 1)];
+            index++;
+            return Task.FromResult(snapshot);
+        }
+    }
     private sealed class FakeDashboardQueryService : IDashboardQueryService
     {
         private readonly DashboardSnapshot _snapshot;

@@ -45,6 +45,23 @@ public sealed class PetReminderPresenterTests
         Assert.Equal(1, CountOccurrences(feedback, kaomoji));
     }
 
+    [Theory]
+    [InlineData(ReminderAction.Complete, "完成啦！ദ്ദി˶>𖥦<)✧")]
+    [InlineData(ReminderAction.Snooze, "那就稍等一下下嘛～(,,•́ . •̀,,)")]
+    [InlineData(ReminderAction.Skip, "好吧，这次先放过自己 ʕ.•᷅ࡇ•᷄.ʔ")]
+    public async Task ShowsActionFeedbackThenRestoresIdleSkin(
+        ReminderAction action,
+        string expectedText)
+    {
+        var host = new RecordingPetHost();
+        var presenter = new PetReminderPresenter(host);
+
+        await presenter.ShowFeedbackAsync(action, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedText, host.LastFeedback);
+        Assert.Equal(1, host.IdleRestoreCount);
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         var count = 0;
@@ -63,6 +80,8 @@ public sealed class PetReminderPresenterTests
         public bool IsVisible { get; private set; }
         public bool OpenedMainWindow => false;
         public PetReminderView? LastView { get; private set; }
+        public string? LastFeedback { get; private set; }
+        public int IdleRestoreCount { get; private set; }
 
         public Task ShowAsync(PetReminderView view, CancellationToken cancellationToken)
         {
@@ -72,5 +91,17 @@ public sealed class PetReminderPresenterTests
         }
 
         public void Hide() => IsVisible = false;
+
+        public Task ShowFeedbackAsync(string text, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastFeedback = text;
+            return Task.CompletedTask;
+        }
+
+        public void RestoreIdle()
+        {
+            IdleRestoreCount++;
+        }
     }
 }

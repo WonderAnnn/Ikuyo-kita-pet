@@ -17,6 +17,10 @@ public interface IPetWindowHost
 
     Task ShowAsync(PetReminderView view, CancellationToken cancellationToken);
 
+    Task ShowFeedbackAsync(string text, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    void RestoreIdle() { }
+
     void Hide();
 }
 
@@ -37,6 +41,19 @@ public sealed class PetReminderPresenter(IPetWindowHost host) : IReminderPresent
                 .ToArray());
 
         await host.ShowAsync(view, cancellationToken);
+    }
+
+    public async Task ShowFeedbackAsync(ReminderAction action, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            await host.ShowFeedbackAsync(BuildFeedback(action), cancellationToken);
+        }
+        finally
+        {
+            host.RestoreIdle();
+        }
     }
 
     public static string BuildFeedback(ReminderAction action) => action switch

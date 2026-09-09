@@ -18,6 +18,7 @@
             Height="430"
             Background="Transparent">
         <Border x:Name="Bubble"
+                Visibility="Collapsed"
                 Canvas.Left="12"
                 Canvas.Top="8"
                 Width="356"
@@ -35,6 +36,7 @@
                        TextWrapping="Wrap" />
         </Border>
         <Polygon x:Name="BubbleArrow"
+                 Visibility="Collapsed"
                  Canvas.Left="178"
                  Canvas.Top="88"
                  Fill="#FDFEFF"

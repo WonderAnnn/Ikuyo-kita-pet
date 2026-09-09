@@ -5,6 +5,7 @@ using System.Windows.Input;
 using IkuyoPet.Core.Dashboard;
 using IkuyoPet.Core.Storage;
 using IkuyoPet.Core.WorkTracking;
+using IkuyoPet.Infrastructure.Storage;
 using IkuyoPet.Infrastructure.Windows;
 
 namespace IkuyoPet.App;
@@ -14,6 +15,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly IDashboardQueryService dashboard;
     private readonly IEventRepository? repository;
     private readonly WindowsStartupManager? startupManager;
+    private readonly AppSettingsStore? appSettingsStore;
     private readonly MainWindowState navigation = new();
     private DashboardSnapshot? todaySnapshot;
     private bool petEnabled = true;
@@ -26,15 +28,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool startupEnabled;
     private string startupStatus = string.Empty;
     private string settingsStatus = string.Empty;
+    private string currentSkinText = "默认占位皮肤";
+    private string ruleSummaryText = "有效工作 40–50 分钟后提醒，建议离屏轻缓活动 5 分钟。";
 
     public MainWindowViewModel(
         IDashboardQueryService dashboard,
         IEventRepository? repository = null,
-        WindowsStartupManager? startupManager = null)
+        WindowsStartupManager? startupManager = null,
+        AppSettingsStore? appSettingsStore = null)
     {
         this.dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
         this.repository = repository;
         this.startupManager = startupManager;
+        this.appSettingsStore = appSettingsStore;
         NavigateCommand = new RelayCommand(parameter =>
         {
             if (parameter is string page && Enum.TryParse<MainWindowPage>(page, out var selected)) Navigate(selected);
@@ -86,7 +92,28 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool PetEnabled
     {
         get => petEnabled;
-        set { if (petEnabled == value) return; petEnabled = value; OnPropertyChanged(); }
+        set
+        {
+            if (petEnabled == value) return;
+            petEnabled = value;
+            OnPropertyChanged();
+            PersistPetEnabled();
+            OnPropertyChanged(nameof(ReminderChannelText));
+        }
+    }
+
+    public string ReminderChannelText => PetEnabled ? "透明桌宠提醒" : "Windows 通知提醒";
+
+    public string CurrentSkinText
+    {
+        get => currentSkinText;
+        private set { if (currentSkinText == value) return; currentSkinText = value; OnPropertyChanged(); }
+    }
+
+    public string RuleSummaryText
+    {
+        get => ruleSummaryText;
+        private set { if (ruleSummaryText == value) return; ruleSummaryText = value; OnPropertyChanged(); }
     }
     public IReadOnlyList<TrackedApplication> TrackedApplications
     {
@@ -149,17 +176,44 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public async Task LoadSettingsAsync(CancellationToken cancellationToken = default)
     {
-        if (repository is null) return;
-        var applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
-        if (applications.Count == 0)
+        if (appSettingsStore is not null)
         {
-            await repository.UpsertTrackedApplicationAsync(
-                new TrackedApplication("pycharm64", "PyCharm", true),
-                cancellationToken);
-            applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
+            try
+            {
+                var storedPetEnabled = await appSettingsStore.ReadAsync("pet.enabled", cancellationToken);
+                if (bool.TryParse(storedPetEnabled, out var enabled))
+                {
+                    petEnabled = enabled;
+                    OnPropertyChanged(nameof(PetEnabled));
+                    OnPropertyChanged(nameof(ReminderChannelText));
+                }
+            }
+            catch (Exception exception)
+            {
+                SettingsStatus = $"读取桌宠设置失败：{exception.Message}";
+            }
         }
 
-        TrackedApplications = applications;
+        if (repository is not null)
+        {
+            var applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
+            if (applications.Count == 0)
+            {
+                await repository.UpsertTrackedApplicationAsync(
+                    new TrackedApplication("pycharm64", "PyCharm", true),
+                    cancellationToken);
+                applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
+            }
+
+            TrackedApplications = applications;
+            var rules = await repository.ReadReminderRulesAsync(cancellationToken);
+            var activityRule = rules.FirstOrDefault(rule => rule.Enabled && rule.Kind == "activity");
+            if (activityRule is not null)
+            {
+                RuleSummaryText = $"有效工作 {activityRule.IntervalMinMinutes}–{activityRule.IntervalMaxMinutes} 分钟后提醒，建议离屏轻缓活动 {activityRule.ActivityDurationMinutes} 分钟；参数来源：{activityRule.ParameterSource}。";
+            }
+        }
+
         if (startupManager is not null)
         {
             var startupState = startupManager.ReadStatus();
@@ -171,6 +225,30 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public void SetCurrentSkin(string id, string version, bool loaded, string? error = null)
+    {
+        CurrentSkinText = loaded ? $"{id} / {version}" : "默认占位皮肤";
+        if (!loaded && !string.IsNullOrWhiteSpace(error))
+        {
+            SettingsStatus = $"皮肤加载失败，已使用占位皮肤：{error}";
+        }
+    }
+
+    private void PersistPetEnabled()
+    {
+        if (appSettingsStore is null) return;
+        try
+        {
+            appSettingsStore.WriteAsync(
+                "pet.enabled",
+                PetEnabled ? "true" : "false",
+                CancellationToken.None).GetAwaiter().GetResult();
+        }
+        catch (Exception exception)
+        {
+            SettingsStatus = $"保存桌宠设置失败：{exception.Message}";
+        }
+    }
     private async Task AddTrackedApplicationAsync()
     {
         if (repository is null) return;
@@ -220,7 +298,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CurrentPage));
     }
 
-    public async Task LoadTodayAsync(DateOnly day, CancellationToken cancellationToken = default)
+    public Task LoadTodayAsync(DateOnly day, CancellationToken cancellationToken = default) =>
+        RefreshAsync(day, cancellationToken);
+
+    public async Task RefreshAsync(DateOnly day, CancellationToken cancellationToken = default)
     {
         TodaySnapshot = await dashboard.GetAsync(day, cancellationToken);
         OnPropertyChanged(nameof(NextReminderText));

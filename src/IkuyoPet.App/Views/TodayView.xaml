@@ -1,22 +1,30 @@
 <UserControl x:Class="IkuyoPet.App.Views.TodayView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <StackPanel>
-        <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="早上好，今天也慢慢来"/>
-        <Border Margin="0,20,0,16" Padding="22" CornerRadius="22" Background="#FFEAF4FF">
-            <StackPanel>
-                <TextBlock FontSize="16" Foreground="#FF68778D" Text="桌宠陪伴卡"/>
-                <Border Margin="0,12,0,4" Width="160" Height="72" HorizontalAlignment="Left" CornerRadius="36" Background="#FFFFD9E8">
-                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FF9B5473" Text="透明桌宠 · 默认皮肤"/>
-                </Border>
-                <TextBlock Margin="0,10,0,0" FontSize="22" FontWeight="SemiBold" Foreground="#FF263247" Text="{Binding NextReminderText}" TextWrapping="Wrap"/>
-                <TextBlock Margin="0,10,0,0" Foreground="#FF68778D" Text="喝口水、伸个懒腰，给自己一点缓冲吧～"/>
-            </StackPanel>
-        </Border>
-        <UniformGrid Columns="3">
-            <Border Margin="0,0,8,0" Padding="14" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="喝水" Foreground="#FF68778D"/><TextBlock Text="{Binding HydrationText}" FontSize="24"/></StackPanel></Border>
-            <Border Margin="4,0" Padding="14" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="活动" Foreground="#FF68778D"/><TextBlock Text="{Binding ActivityText}" FontSize="24"/></StackPanel></Border>
-            <Border Margin="8,0,0,0" Padding="14" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="工作" Foreground="#FF68778D"/><TextBlock Text="{Binding WorkDurationText}" FontSize="20"/></StackPanel></Border>
-        </UniformGrid>
-    </StackPanel>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+            <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="今天也按自己的节奏来"/>
+            <Border Margin="0,20,0,16" Padding="22" CornerRadius="22" Background="#FFEAF4FF">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock FontSize="16" Foreground="#FF68778D" Text="下一次离屏活动"/>
+                        <TextBlock Margin="0,10,0,0" FontSize="22" FontWeight="SemiBold" Foreground="#FF263247" Text="{Binding NextReminderText}" TextWrapping="Wrap"/>
+                        <TextBlock Margin="0,10,0,0" Foreground="#FF68778D" Text="{Binding RuleSummaryText}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Border Grid.Column="1" Margin="20,0,0,0" Padding="16,9" VerticalAlignment="Top" CornerRadius="18" Background="#FFFFD9E8">
+                        <TextBlock Foreground="#FF9B5473" FontWeight="SemiBold" Text="{Binding ReminderChannelText}"/>
+                    </Border>
+                </Grid>
+            </Border>
+            <UniformGrid Columns="3">
+                <Border Margin="0,0,8,0" Padding="16" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="喝水完成" Foreground="#FF68778D"/><TextBlock Margin="0,6,0,0" Text="{Binding HydrationText}" FontSize="24" FontWeight="SemiBold"/></StackPanel></Border>
+                <Border Margin="4,0" Padding="16" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="活动完成" Foreground="#FF68778D"/><TextBlock Margin="0,6,0,0" Text="{Binding ActivityText}" FontSize="24" FontWeight="SemiBold"/></StackPanel></Border>
+                <Border Margin="8,0,0,0" Padding="16" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="有效工作" Foreground="#FF68778D"/><TextBlock Margin="0,6,0,0" Text="{Binding WorkDurationText}" FontSize="20" FontWeight="SemiBold"/></StackPanel></Border>
+            </UniformGrid>
+            <Border Margin="0,16,0,0" Padding="16" CornerRadius="14" BorderBrush="#FFE2E8F0" BorderThickness="1" Background="#FFFAFCFF">
+                <TextBlock Foreground="#FF68778D" Text="这里只记录提醒时间、接受/搁置/跳过/未响应和白名单应用的有效前台工作时长；不记录睡眠、医疗报告或窗口内容。" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

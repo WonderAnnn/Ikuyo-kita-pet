@@ -25,7 +25,10 @@ public sealed class MainWindowViewModel
         navigation.Navigate(page);
     }
 
-    public async Task LoadTodayAsync(DateOnly day, CancellationToken cancellationToken = default)
+    public Task LoadTodayAsync(DateOnly day, CancellationToken cancellationToken = default) =>
+        RefreshAsync(day, cancellationToken);
+
+    public async Task RefreshAsync(DateOnly day, CancellationToken cancellationToken = default)
     {
         Today = await dashboard.GetAsync(day, cancellationToken);
     }

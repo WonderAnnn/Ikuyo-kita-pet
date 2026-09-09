@@ -23,8 +23,31 @@
         <Grid Grid.Column="1" Margin="0">
             <views:TodayView x:Name="TodayPanel" Margin="28"/>
             <views:LogView x:Name="LogPanel" Margin="28" Visibility="Collapsed"/>
-            <Grid x:Name="RulesPanel" Margin="28" Visibility="Collapsed"><StackPanel><TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="提醒规则"/><TextBlock Margin="0,10,0,0" Foreground="#FF68778D" Text="规则编辑将在提醒设置任务中接入。"/></StackPanel></Grid>
-            <Grid x:Name="PetPanel" Margin="28" Visibility="Collapsed"><StackPanel><TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="桌宠与皮肤"/><TextBlock Margin="0,10,0,0" Foreground="#FF68778D" Text="透明桌宠和本地皮肤替换保持独立运行。"/></StackPanel></Grid>
+            <Grid x:Name="RulesPanel" Margin="28" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="提醒规则"/>
+                    <Border Margin="0,20,0,0" Padding="20" CornerRadius="16" Background="White">
+                        <StackPanel>
+                            <TextBlock FontSize="17" FontWeight="SemiBold" Text="离屏轻缓活动"/>
+                            <TextBlock Margin="0,10,0,0" Foreground="#FF68778D" Text="{Binding RuleSummaryText}" TextWrapping="Wrap"/>
+                            <TextBlock Margin="0,8,0,0" Foreground="#FF9AA6B8" Text="仅累计白名单应用的有效前台工作秒数；锁屏、全屏和离开电脑时暂停累计与呈现。" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+            <Grid x:Name="PetPanel" Margin="28" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="桌宠与皮肤"/>
+                    <Border Margin="0,20,0,0" Padding="20" CornerRadius="16" Background="White">
+                        <StackPanel>
+                            <TextBlock FontSize="17" FontWeight="SemiBold" Text="当前皮肤"/>
+                            <TextBlock Margin="0,10,0,0" Foreground="#FF263247" Text="{Binding CurrentSkinText}"/>
+                            <CheckBox Margin="0,16,0,0" Content="显示透明可拖动桌宠" IsChecked="{Binding PetEnabled, Mode=TwoWay}"/>
+                            <TextBlock Margin="0,8,0,0" Foreground="#FF68778D" Text="关闭后提醒会自动走 Windows 通知；透明 PNG 始终按原比例缩放。" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
             <views:SettingsView x:Name="SettingsPanel" Margin="28" Visibility="Collapsed"/>
         </Grid>
     </Grid>

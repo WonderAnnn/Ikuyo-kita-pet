@@ -51,6 +51,38 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 
         base.Hide();
     }
+    public async Task ShowFeedbackAsync(string text, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await Dispatcher.InvokeAsync(() =>
+        {
+            currentView = null;
+            ReminderText.Inlines.Clear();
+            ReminderText.Inlines.Add(new Run(text));
+            Bubble.Visibility = Visibility.Visible;
+            BubbleArrow.Visibility = Visibility.Visible;
+            if (!IsVisible) Show();
+            ClampToWorkArea();
+        }, System.Windows.Threading.DispatcherPriority.Normal, cancellationToken);
+
+        await Task.Delay(TimeSpan.FromSeconds(2.4), cancellationToken);
+    }
+
+    public void RestoreIdle()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(RestoreIdle);
+            return;
+        }
+
+        currentView = null;
+        ShowIdleSkin();
+        Bubble.Visibility = Visibility.Collapsed;
+        BubbleArrow.Visibility = Visibility.Collapsed;
+    }
 
     public void SetSkinAssets(SkinAssetSet assets)
     {
@@ -117,6 +149,8 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     {
         currentView = view;
         ShowReminderSkin();
+        Bubble.Visibility = Visibility.Visible;
+        BubbleArrow.Visibility = Visibility.Visible;
         RenderView(view);
         if (!hasPosition)
         {

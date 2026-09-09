@@ -38,12 +38,14 @@ public partial class App : Application
         var startupManager = new WindowsStartupManager(
             new CurrentUserStartupEntryStore(),
             Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "IkuyoPet.exe"));
-        var viewModel = new MainWindowViewModel(dashboard, repository, startupManager);
+        var appSettingsStore = new AppSettingsStore(connectionString);
+        var viewModel = new MainWindowViewModel(dashboard, repository, startupManager, appSettingsStore);
         viewModel.LoadSettingsAsync(CancellationToken.None).GetAwaiter().GetResult();
         var window = new MainWindow(viewModel);
         petWindow = new PetWindow();
         var skinRoot = ResolveSkinRoot(dataRoot);
-        var selectedSkin = new SkinSelectionStore(Path.Combine(dataRoot, "skins"))
+        var skinSelectionStore = new SkinSelectionStore(Path.Combine(dataRoot, "skins"));
+        var selectedSkin = skinSelectionStore
             .LoadAsync(CancellationToken.None).GetAwaiter().GetResult()
             ?? new SkinSelection("user.ikuyo-local", "1.0.0");
         var skinResult = new SkinBootstrapper(new SkinPackageValidator(), skinRoot)
@@ -51,16 +53,22 @@ public partial class App : Application
         if (skinResult.Assets is not null)
         {
             petWindow.SetSkinAssets(skinResult.Assets);
+            viewModel.SetCurrentSkin(selectedSkin.Id, selectedSkin.Version, loaded: true);
         }
-        else if (!string.IsNullOrWhiteSpace(skinResult.Error))
+        else
         {
-            Debug.WriteLine(skinResult.Error);
+            viewModel.SetCurrentSkin(selectedSkin.Id, selectedSkin.Version, loaded: false, skinResult.Error);
+            if (!string.IsNullOrWhiteSpace(skinResult.Error)) Debug.WriteLine(skinResult.Error);
         }
         var actionCoordinator = new ReminderActionCoordinator(
             repository,
             new ReminderStateMachine(3),
             TimeProvider.System);
-        notificationSink = new WindowsAppNotificationSink(new NotificationActionHandler(actionCoordinator));
+        notificationSink = new WindowsAppNotificationSink(new NotificationActionHandler(
+            actionCoordinator,
+            cancellationToken => viewModel.RefreshAsync(
+                DateOnly.FromDateTime(viewModel.SelectedDate),
+                cancellationToken)));
         var notificationPresenter = new WindowsNotificationPresenter(notificationSink);
         var petPresenter = new PetReminderPresenter(petWindow);
         var router = new ReminderPresentationRouter(petPresenter, notificationPresenter);
@@ -73,7 +81,8 @@ public partial class App : Application
             TimeProvider.System,
             TimeZoneInfo.Local,
             isPaused: () => pausedUntil is { } until && until > DateTimeOffset.UtcNow,
-            isSuppressed: activityProbe.IsReminderSuppressed);
+            isSuppressed: activityProbe.IsReminderSuppressed,
+            actionCoordinator: actionCoordinator);
         workTrackingLoop = new WorkTrackingLoop(
             new WorkTrackingService(
                 activityProbe,
@@ -83,13 +92,38 @@ public partial class App : Application
 
         petWindow.ActionInvoked += async (_, args) =>
         {
-            await actionCoordinator.HandleAsync(args.EventId, args.Action, CancellationToken.None);
-            petWindow.ShowIdleSkin();
+            try
+            {
+                var result = await actionCoordinator.HandleAsync(
+                    args.EventId,
+                    args.Action,
+                    CancellationToken.None);
+                if (result is { Applied: true })
+                {
+                    await viewModel.RefreshAsync(
+                        DateOnly.FromDateTime(viewModel.SelectedDate),
+                        CancellationToken.None);
+                    await petPresenter.ShowFeedbackAsync(args.Action, CancellationToken.None);
+                }
+                else
+                {
+                    petWindow.RestoreIdle();
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine($"Reminder action failed: {exception}");
+                petWindow.RestoreIdle();
+            }
         };
         viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName != nameof(MainWindowViewModel.PetEnabled)) return;
-            if (viewModel.PetEnabled) petWindow.Show();
+            if (viewModel.PetEnabled)
+            {
+                petWindow.RestoreIdle();
+                petWindow.Show();
+            }
             else petWindow.Hide();
         };
 
@@ -102,7 +136,7 @@ public partial class App : Application
         lifetimeCancellation = new CancellationTokenSource();
         reminderTask = RunReminderLoopAsync(reminderLoop, lifetimeCancellation.Token);
         workTrackingTask = RunWorkTrackingLoopAsync(workTrackingLoop, lifetimeCancellation.Token);
-        petWindow.Show();
+        if (viewModel.PetEnabled) petWindow.Show();
         window.Closed += (_, _) => trayIconHost?.Dispose();
         MainWindow = window;
         window.Show();
@@ -167,7 +201,9 @@ public partial class App : Application
         }
     }
 
-    private sealed class NotificationActionHandler(ReminderActionCoordinator coordinator)
+    private sealed class NotificationActionHandler(
+        ReminderActionCoordinator coordinator,
+        Func<CancellationToken, Task> refreshDashboardAsync)
         : INotificationActionHandler
     {
         public async Task HandleAsync(
@@ -175,7 +211,8 @@ public partial class App : Application
             ReminderAction action,
             CancellationToken cancellationToken)
         {
-            await coordinator.HandleAsync(eventId, action, cancellationToken);
+            var result = await coordinator.HandleAsync(eventId, action, cancellationToken);
+            if (result is { Applied: true }) await refreshDashboardAsync(cancellationToken);
         }
     }
 }
