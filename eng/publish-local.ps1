@@ -25,6 +25,23 @@ if (-not $SkipRestore) {
 & $dotnet publish $project --configuration Release --runtime win-x64 --self-contained true --output $output --no-restore
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
 
+$publishedExe = Join-Path $output 'IkuyoPet.exe'
+if (-not (Test-Path -LiteralPath $publishedExe)) {
+    throw "Publish output is missing IkuyoPet.exe: $output"
+}
+
+$publicInteraction = Join-Path $output 'interactions\default\click.json'
+if (-not (Test-Path -LiteralPath $publicInteraction)) {
+    throw "Publish output is missing public interaction fallback: $publicInteraction"
+}
+
+$privateInteractionSource = Join-Path $repoRoot 'local-assets\interactions\ikuyo-click.zh-CN.json'
+$privateInteractionOutput = Join-Path $output 'interactions\ikuyo-click.json'
+if ((Test-Path -LiteralPath $privateInteractionSource) -and
+    -not (Test-Path -LiteralPath $privateInteractionOutput)) {
+    throw "Private interaction source exists but publish output is missing: $privateInteractionOutput"
+}
+
 $privateSkin = Join-Path $repoRoot 'local-skins'
 if (Test-Path -LiteralPath $privateSkin) {
     Copy-Item -LiteralPath $privateSkin -Destination (Join-Path $output 'local-skins') -Recurse -Force

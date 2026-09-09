@@ -23,6 +23,8 @@ public partial class App : Application
     private Task? reminderTask;
     private WorkTrackingLoop? workTrackingLoop;
     private Task? workTrackingTask;
+    private PetInteractionSelector? interactionSelector;
+    private bool isExiting;
 
     private async void OnStartup(object sender, StartupEventArgs e)
     {
@@ -45,6 +47,8 @@ public partial class App : Application
             await viewModel.LoadSettingsAsync(CancellationToken.None);
             var window = new MainWindow(viewModel);
             petWindow = new PetWindow();
+            interactionSelector = await LoadInteractionSelectorAsync(CancellationToken.None);
+            petWindow.InteractionRequested += OnPetInteractionRequested;
             var skinSelectionStore = new SkinSelectionStore(Path.Combine(dataRoot, "skins"));
             var selectedSkin = await skinSelectionStore
                 .LoadAsync(CancellationToken.None)
@@ -166,6 +170,53 @@ public partial class App : Application
         }
     }
 
+    private static async Task<PetInteractionSelector> LoadInteractionSelectorAsync(
+        CancellationToken cancellationToken)
+    {
+        var loader = new PetInteractionCatalogLoader();
+        var fallback = PetInteractionDefaults.Create();
+        var publicPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "interactions",
+            "default",
+            "click.json");
+        var publicResult = await loader.LoadAsync(publicPath, fallback, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(publicResult.Diagnostic))
+            Debug.WriteLine($"Public pet interaction catalog: {publicResult.Diagnostic}");
+
+        var privatePath = Path.Combine(
+            AppContext.BaseDirectory,
+            "interactions",
+            "ikuyo-click.json");
+        var privateResult = await loader.LoadAsync(privatePath, publicResult.Catalog, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(privateResult.Diagnostic))
+            Debug.WriteLine($"Private pet interaction catalog: {privateResult.Diagnostic}");
+
+        return new PetInteractionSelector(privateResult.Catalog);
+    }
+
+    private async void OnPetInteractionRequested(object? sender, EventArgs e)
+    {
+        if (isExiting || interactionSelector is null || petWindow is null) return;
+
+        try
+        {
+            var message = interactionSelector.Next();
+            await petWindow.ShowInteractionAsync(
+                message.Text,
+                TimeSpan.FromSeconds(4),
+                CancellationToken.None);
+        }
+        catch (OperationCanceledException) when (isExiting)
+        {
+            // Expected if application shutdown interrupts the visible interaction.
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine($"Pet interaction failed: {exception}");
+        }
+    }
+
     private static string ResolveSkinRoot(string dataRoot, SkinSelection selection)
     {
         var userRoot = Path.Combine(dataRoot, "skins");
@@ -175,8 +226,12 @@ public partial class App : Application
             ? userRoot
             : bundledRoot;
     }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        isExiting = true;
+        if (petWindow is not null)
+            petWindow.InteractionRequested -= OnPetInteractionRequested;
         lifetimeCancellation?.Cancel();
         try
         {

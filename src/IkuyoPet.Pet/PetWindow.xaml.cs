@@ -254,7 +254,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     public async Task ShowInteractionAsync(string text, TimeSpan duration, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        if (duration <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(duration));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(duration, TimeSpan.Zero);
         cancellationToken.ThrowIfCancellationRequested();
         var tokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var accepted = false;

@@ -19,6 +19,17 @@ if ($LASTEXITCODE -eq 0 -and $trackedPrivate) { throw 'Private local-skins and l
 if ($PublishRoot) {
     $exe = Join-Path $PublishRoot 'IkuyoPet.exe'
     if (-not (Test-Path -LiteralPath $exe)) { throw "Publish output is missing IkuyoPet.exe: $PublishRoot" }
+
+    $publicInteraction = Join-Path $PublishRoot 'interactions\default\click.json'
+    if (-not (Test-Path -LiteralPath $publicInteraction)) {
+        throw "Publish output is missing public interaction fallback: $publicInteraction"
+    }
+
+    $privateSource = Join-Path $repoRoot 'local-assets\interactions\ikuyo-click.zh-CN.json'
+    $privateOutput = Join-Path $PublishRoot 'interactions\ikuyo-click.json'
+    if ((Test-Path -LiteralPath $privateSource) -and -not (Test-Path -LiteralPath $privateOutput)) {
+        throw "Private interaction source exists but publish output is missing: $privateOutput"
+    }
 }
 
 [pscustomobject]@{

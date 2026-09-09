@@ -54,6 +54,36 @@ dotnet run --project .\src\IkuyoPet.App\IkuyoPet.App.csproj
 
 用户可以在遵守素材来源许可的前提下，在本机导入自定义皮肤。默认皮肤目录和清单说明见 [`assets/skins/default/README.md`](assets/skins/default/README.md)，清单格式见 [`schemas/skin-manifest.schema.json`](schemas/skin-manifest.schema.json)。
 
+## 本机私有素材与点击互动
+
+`local-assets/` 是只供当前电脑构建和发布使用的目录，已被 Git 忽略。请只放入自己有权使用的素材：
+
+```text
+local-assets/
+  branding/icon/icon256.ico
+  interactions/ikuyo-click.zh-CN.json
+```
+
+公开回退文案位于 `assets/interactions/default/click.zh-CN.json`，构建后安全映射为 `interactions/default/click.json`；本机文案构建后映射为 `interactions/ikuyo-click.json`。私有文案缺失或损坏时，程序会静默使用公开回退，不阻止启动。
+
+互动文件遵循 [`schemas/pet-interaction.schema.json`](schemas/pet-interaction.schema.json)。最小示例：
+
+```json
+{
+  "character": "自定义角色",
+  "event": "click",
+  "language": "zh-CN",
+  "messages": [
+    { "id": 1, "text": "今天也按自己的节奏来吧～", "mood": "cheerful" }
+  ]
+}
+```
+
+`text` 仅作为纯文本显示；程序不执行其中的 HTML、Markdown、URL、命令或模板表达式。单击桌宠会随机显示一条文案，连续两次不会选择同一 ID；普通互动约 4 秒后收起，也不会写入 SQLite、健康日志或 CSV。
+
+## 窗口与托盘行为
+
+正常启动会直接显示主页面。点击主窗口的最小化或关闭按钮只会隐藏主页面和任务栏按钮，后台提醒、有效工作统计、系统托盘与已启用桌宠继续运行。单击托盘图标或选择“打开今日”可恢复窗口；只有托盘菜单“退出 Ikuyo Pet”才结束进程。
 ## 项目结构
 
 ```text
@@ -97,7 +127,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\eng\publish-local.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\eng\verify-dev.ps1 -PublishRoot .\artifacts\publish\win-x64
 ```
 
-脚本默认使用 `G:\IkuyoPetDev\dotnet\dotnet.exe` 和 `G:\IkuyoPetDev\nuget\packages`；也可以通过 `IKUYO_PET_DOTNET` 指定其他 .NET 10 SDK。发布目录中的私有皮肤只来自本机 `local-skins/`，该目录已被 `.gitignore` 忽略。
+脚本默认使用 `G:\IkuyoPetDev\dotnet\dotnet.exe` 和 `G:\IkuyoPetDev\nuget\packages`；也可以通过 `IKUYO_PET_DOTNET` 指定其他 .NET 10 SDK。发布目录中的私有皮肤来自本机 `local-skins/`，私有图标与互动文案来自 `local-assets/`；两个目录都被 `.gitignore` 忽略。发布脚本要求公开回退文案存在，并只在本机私有 JSON 存在时校验它已复制。
 
 ## 医疗说明
 
