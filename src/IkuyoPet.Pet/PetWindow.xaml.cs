@@ -58,7 +58,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         skinAssets = assets;
         try
         {
-            ShowIdleSkin();
+            TrySetSkinImage(skinAssets.IdlePath);
         }
         catch (Exception exception) when (exception is IOException or NotSupportedException or InvalidOperationException or ArgumentException)
         {
@@ -71,12 +71,27 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 
     public void ShowIdleSkin()
     {
-        if (skinAssets is not null) SetSkinImage(skinAssets.IdlePath);
+        if (skinAssets is not null) TrySetSkinImage(skinAssets.IdlePath);
     }
 
     public void ShowReminderSkin()
     {
-        if (skinAssets is not null) SetSkinImage(skinAssets.RemindPath);
+        if (skinAssets is not null) TrySetSkinImage(skinAssets.RemindPath);
+    }
+
+    private void TrySetSkinImage(string imagePath)
+    {
+        try
+        {
+            SetSkinImage(imagePath);
+        }
+        catch (Exception exception) when (exception is IOException or NotSupportedException or InvalidOperationException or ArgumentException)
+        {
+            skinAssets = null;
+            PetImage.Source = null;
+            PetImage.Visibility = Visibility.Collapsed;
+            PetPlaceholder.Visibility = Visibility.Visible;
+        }
     }
 
     public void SetSkinImage(string imagePath)

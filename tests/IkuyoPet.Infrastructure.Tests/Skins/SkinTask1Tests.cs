@@ -103,6 +103,22 @@ public sealed class SkinTask1Tests
         }
         finally { Directory.Delete(root, recursive: true); }
     }
+    [Fact]
+    public void CorruptManifestReturnsDiagnosticPlaceholder()
+    {
+        var root = Directory.CreateTempSubdirectory("ikuyo-skin-root-").FullName;
+        try
+        {
+            var package = Path.Combine(root, "broken", "1.0.0");
+            Directory.CreateDirectory(package);
+            File.WriteAllText(Path.Combine(package, "manifest.json"), "{broken");
+            var result = new SkinBootstrapper(new SkinPackageValidator(), root)
+                .ResolveWithDiagnostics(new SkinSelection("broken", "1.0.0"));
+            Assert.True(result.UsesPlaceholder);
+            Assert.Contains("皮肤加载失败", result.Error, StringComparison.Ordinal);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
     private static void WriteManifest(string directory, int width, int height) =>
         File.WriteAllText(Path.Combine(directory, "manifest.json"), $$"""
             {"id":"task1","name":"测试","version":"1.0.0","author":"test","license":"test","canvasWidth":{{width}},"canvasHeight":{{height}},"fps":1}

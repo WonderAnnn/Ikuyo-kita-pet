@@ -42,6 +42,18 @@ public interface IEventRepository
 
     Task UpsertReminderRuleAsync(ReminderRule rule, CancellationToken cancellationToken);
 
+    Task<bool> TryAddDefaultReminderRuleAsync(
+        ReminderRule rule,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    Task<ReminderRuntimeState?> ReadReminderRuntimeStateAsync(
+        Guid ruleId,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    Task UpsertReminderRuntimeStateAsync(
+        ReminderRuntimeState state,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
     Task<IReadOnlyList<WorkSession>> ReadWorkSessionsAsync(
         DateOnly day,
         CancellationToken cancellationToken);

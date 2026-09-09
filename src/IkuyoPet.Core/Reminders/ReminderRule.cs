@@ -19,6 +19,32 @@ public sealed record ReminderRule(
 
     public QuietHours QuietHours { get; init; } =
         global::IkuyoPet.Core.Reminders.QuietHours.Disabled;
+
+    public int IntervalMinMinutes { get; init; } = IntervalMinutes;
+
+    public int IntervalMaxMinutes { get; init; } = IntervalMinutes;
+
+    public int ActivityDurationMinutes { get; init; } = 5;
+
+    public string ParameterSource { get; init; } = "legacy";
+
+    public string ParameterVersion { get; init; } = "legacy";
+
+    public static ReminderRule CreateDefaultActiveWork(Guid id) => new(
+        id,
+        "activity",
+        "离开屏幕，轻缓活动 5 分钟吧",
+        new TimeOnly(8, 0),
+        new TimeOnly(23, 0),
+        45,
+        true)
+    {
+        IntervalMinMinutes = 40,
+        IntervalMaxMinutes = 50,
+        ActivityDurationMinutes = 5,
+        ParameterSource = "general-default",
+        ParameterVersion = "2026-09-09",
+    };
 }
 
 public sealed record QuietHours(

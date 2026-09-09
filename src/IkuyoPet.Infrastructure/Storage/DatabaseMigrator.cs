@@ -75,6 +75,11 @@ public sealed class DatabaseMigrator
                 start_local TEXT NOT NULL,
                 end_local TEXT NOT NULL,
                 interval_minutes INTEGER NOT NULL,
+                interval_min_minutes INTEGER NOT NULL DEFAULT 0,
+                interval_max_minutes INTEGER NOT NULL DEFAULT 0,
+                activity_duration_minutes INTEGER NOT NULL DEFAULT 5,
+                parameter_source TEXT NOT NULL DEFAULT 'legacy',
+                parameter_version TEXT NOT NULL DEFAULT 'legacy',
                 daily_goal INTEGER NOT NULL DEFAULT 0,
                 quiet_start TEXT NOT NULL,
                 quiet_end TEXT NOT NULL,
@@ -94,7 +99,21 @@ public sealed class DatabaseMigrator
                 action_at TEXT NULL,
                 retry_index INTEGER NOT NULL,
                 suppressed_reason TEXT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                activity_duration_minutes INTEGER NOT NULL DEFAULT 0,
+                parameter_source TEXT NOT NULL DEFAULT 'legacy',
+                parameter_version TEXT NOT NULL DEFAULT 'legacy'
+            );
+
+            CREATE TABLE IF NOT EXISTS reminder_runtime_state (
+                rule_id TEXT PRIMARY KEY REFERENCES reminder_rules(id) ON DELETE CASCADE,
+                cycle_id TEXT NOT NULL UNIQUE,
+                target_active_seconds INTEGER NOT NULL CHECK (target_active_seconds > 0),
+                accumulated_active_seconds INTEGER NOT NULL CHECK (accumulated_active_seconds >= 0),
+                state TEXT NOT NULL CHECK (state IN ('accumulating', 'due', 'waiting_retry', 'unanswered')),
+                attempt INTEGER NOT NULL CHECK (attempt >= 0),
+                retry_due_at TEXT NULL,
+                updated_at TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS tracked_apps (
@@ -126,6 +145,84 @@ public sealed class DatabaseMigrator
                 ON reminder_events (scheduled_at);
             CREATE INDEX IF NOT EXISTS ix_work_sessions_started_at
                 ON work_sessions (started_at);
+            """, CancellationToken.None);
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_rules", "interval_min_minutes"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_rules ADD COLUMN interval_min_minutes INTEGER NOT NULL DEFAULT 0;",
+                CancellationToken.None);
+        }
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_rules", "interval_max_minutes"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_rules ADD COLUMN interval_max_minutes INTEGER NOT NULL DEFAULT 0;",
+                CancellationToken.None);
+        }
+
+        await ExecuteAsync(connection, transaction, """
+            UPDATE reminder_rules
+            SET interval_min_minutes = interval_minutes
+            WHERE interval_min_minutes <= 0;
+            UPDATE reminder_rules
+            SET interval_max_minutes = interval_minutes
+            WHERE interval_max_minutes <= 0;
+            """, CancellationToken.None);
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_rules", "activity_duration_minutes"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_rules ADD COLUMN activity_duration_minutes INTEGER NOT NULL DEFAULT 5;",
+                CancellationToken.None);
+        }
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_rules", "parameter_source"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_rules ADD COLUMN parameter_source TEXT NOT NULL DEFAULT 'legacy';",
+                CancellationToken.None);
+        }
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_rules", "parameter_version"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_rules ADD COLUMN parameter_version TEXT NOT NULL DEFAULT 'legacy';",
+                CancellationToken.None);
+        }
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_events", "activity_duration_minutes"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_events ADD COLUMN activity_duration_minutes INTEGER NOT NULL DEFAULT 0;",
+                CancellationToken.None);
+        }
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_events", "parameter_source"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_events ADD COLUMN parameter_source TEXT NOT NULL DEFAULT 'legacy';",
+                CancellationToken.None);
+        }
+
+        if (!await HasColumnAsync(connection, transaction, "reminder_events", "parameter_version"))
+        {
+            await ExecuteAsync(connection, transaction,
+                "ALTER TABLE reminder_events ADD COLUMN parameter_version TEXT NOT NULL DEFAULT 'legacy';",
+                CancellationToken.None);
+        }
+
+        await ExecuteAsync(connection, transaction, """
+            CREATE TABLE IF NOT EXISTS reminder_runtime_state (
+                rule_id TEXT PRIMARY KEY REFERENCES reminder_rules(id) ON DELETE CASCADE,
+                cycle_id TEXT NOT NULL UNIQUE,
+                target_active_seconds INTEGER NOT NULL CHECK (target_active_seconds > 0),
+                accumulated_active_seconds INTEGER NOT NULL CHECK (accumulated_active_seconds >= 0),
+                state TEXT NOT NULL CHECK (state IN ('accumulating', 'due', 'waiting_retry', 'unanswered')),
+                attempt INTEGER NOT NULL CHECK (attempt >= 0),
+                retry_due_at TEXT NULL,
+                updated_at TEXT NOT NULL
+            );
             """, CancellationToken.None);
 
         if (!await HasColumnAsync(connection, transaction, "reminder_rules", "daily_goal"))

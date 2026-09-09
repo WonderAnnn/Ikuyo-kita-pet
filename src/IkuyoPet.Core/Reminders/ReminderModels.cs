@@ -30,6 +30,12 @@ public sealed record ReminderEvent(
     string? SuppressedReason,
     DateTimeOffset CreatedAt)
 {
+    public int ActivityDurationMinutes { get; init; }
+
+    public string ParameterSource { get; init; } = "legacy";
+
+    public string ParameterVersion { get; init; } = "legacy";
+
     public static ReminderEvent Completed(
         Guid id,
         DateTimeOffset scheduledAt,

@@ -24,10 +24,12 @@ public sealed class SqliteEventRepository(
         command.CommandText = """
             INSERT INTO reminder_events
                 (id, rule_id, scheduled_at, displayed_at, channel, action,
-                 action_at, retry_index, suppressed_reason, created_at)
+                 action_at, retry_index, suppressed_reason, created_at,
+                 activity_duration_minutes, parameter_source, parameter_version)
             VALUES
                 ($id, $rule_id, $scheduled_at, $displayed_at, $channel, $action,
-                 $action_at, $retry_index, $suppressed_reason, $created_at);
+                 $action_at, $retry_index, $suppressed_reason, $created_at,
+                 $activity_duration_minutes, $parameter_source, $parameter_version);
             """;
         AddText(command, "$id", item.Id.ToString("N"));
         AddNullableText(command, "$rule_id", item.RuleId?.ToString("N"));
@@ -39,6 +41,9 @@ public sealed class SqliteEventRepository(
         command.Parameters.AddWithValue("$retry_index", item.RetryIndex);
         AddNullableText(command, "$suppressed_reason", item.SuppressedReason);
         AddText(command, "$created_at", ToDbTimestamp(item.CreatedAt));
+        command.Parameters.AddWithValue("$activity_duration_minutes", item.ActivityDurationMinutes);
+        AddText(command, "$parameter_source", item.ParameterSource);
+        AddText(command, "$parameter_version", item.ParameterVersion);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -54,7 +59,8 @@ public sealed class SqliteEventRepository(
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT id, rule_id, scheduled_at, displayed_at, channel, action,
-                   action_at, retry_index, suppressed_reason, created_at
+                   action_at, retry_index, suppressed_reason, created_at,
+                   activity_duration_minutes, parameter_source, parameter_version
             FROM reminder_events
             WHERE id = $id;
             """;
@@ -185,7 +191,9 @@ public sealed class SqliteEventRepository(
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT id, kind, name, start_local, end_local, interval_minutes, enabled,
-                   daily_goal, quiet_start, quiet_end, quiet_enabled
+                   daily_goal, quiet_start, quiet_end, quiet_enabled,
+                   interval_min_minutes, interval_max_minutes, activity_duration_minutes,
+                   parameter_source, parameter_version
             FROM reminder_rules
             ORDER BY id;
             """;
@@ -208,6 +216,11 @@ public sealed class SqliteEventRepository(
                     ParseLocalTime(reader.GetString(8)),
                     ParseLocalTime(reader.GetString(9)),
                     reader.GetInt32(10) != 0),
+                IntervalMinMinutes = reader.GetInt32(11),
+                IntervalMaxMinutes = reader.GetInt32(12),
+                ActivityDurationMinutes = reader.GetInt32(13),
+                ParameterSource = reader.GetString(14),
+                ParameterVersion = reader.GetString(15),
             });
         }
 
@@ -229,12 +242,14 @@ public sealed class SqliteEventRepository(
         command.CommandText = """
             INSERT INTO reminder_rules
                 (id, name, kind, enabled, start_local, end_local, interval_minutes,
-                 daily_goal, quiet_start, quiet_end, quiet_enabled, max_retries,
-                 created_at, updated_at)
+                 interval_min_minutes, interval_max_minutes, activity_duration_minutes,
+                 parameter_source, parameter_version, daily_goal, quiet_start, quiet_end,
+                 quiet_enabled, max_retries, created_at, updated_at)
             VALUES
                 ($id, $name, $kind, $enabled, $start_local, $end_local, $interval_minutes,
-                 $daily_goal, $quiet_start, $quiet_end, $quiet_enabled, $max_retries,
-                 $created_at, $updated_at)
+                 $interval_min_minutes, $interval_max_minutes, $activity_duration_minutes,
+                 $parameter_source, $parameter_version, $daily_goal, $quiet_start, $quiet_end,
+                 $quiet_enabled, $max_retries, $created_at, $updated_at)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 kind = excluded.kind,
@@ -242,6 +257,11 @@ public sealed class SqliteEventRepository(
                 start_local = excluded.start_local,
                 end_local = excluded.end_local,
                 interval_minutes = excluded.interval_minutes,
+                interval_min_minutes = excluded.interval_min_minutes,
+                interval_max_minutes = excluded.interval_max_minutes,
+                activity_duration_minutes = excluded.activity_duration_minutes,
+                parameter_source = excluded.parameter_source,
+                parameter_version = excluded.parameter_version,
                 daily_goal = excluded.daily_goal,
                 quiet_start = excluded.quiet_start,
                 quiet_end = excluded.quiet_end,
@@ -255,6 +275,11 @@ public sealed class SqliteEventRepository(
         AddText(command, "$start_local", ToDbLocalTime(rule.StartLocal));
         AddText(command, "$end_local", ToDbLocalTime(rule.EndLocal));
         command.Parameters.AddWithValue("$interval_minutes", rule.IntervalMinutes);
+        command.Parameters.AddWithValue("$interval_min_minutes", rule.IntervalMinMinutes);
+        command.Parameters.AddWithValue("$interval_max_minutes", rule.IntervalMaxMinutes);
+        command.Parameters.AddWithValue("$activity_duration_minutes", rule.ActivityDurationMinutes);
+        AddText(command, "$parameter_source", rule.ParameterSource);
+        AddText(command, "$parameter_version", rule.ParameterVersion);
         command.Parameters.AddWithValue("$daily_goal", rule.DailyGoal);
         AddText(command, "$quiet_start", ToDbLocalTime(rule.QuietHours.StartLocalTime));
         AddText(command, "$quiet_end", ToDbLocalTime(rule.QuietHours.EndLocalTime));
@@ -265,6 +290,125 @@ public sealed class SqliteEventRepository(
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<bool> TryAddDefaultReminderRuleAsync(
+        ReminderRule rule,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        var now = ToDbTimestamp(DateTimeOffset.UtcNow);
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO reminder_rules
+                (id, name, kind, enabled, start_local, end_local, interval_minutes,
+                 interval_min_minutes, interval_max_minutes, activity_duration_minutes,
+                 parameter_source, parameter_version, daily_goal, quiet_start, quiet_end,
+                 quiet_enabled, max_retries, created_at, updated_at)
+            SELECT
+                $id, $name, $kind, $enabled, $start_local, $end_local, $interval_minutes,
+                $interval_min_minutes, $interval_max_minutes, $activity_duration_minutes,
+                $parameter_source, $parameter_version, $daily_goal, $quiet_start, $quiet_end,
+                $quiet_enabled, $max_retries, $created_at, $updated_at
+            WHERE NOT EXISTS (SELECT 1 FROM reminder_rules);
+            """;
+        AddText(command, "$id", rule.Id.ToString("N"));
+        AddText(command, "$name", rule.Message);
+        AddText(command, "$kind", rule.Kind);
+        command.Parameters.AddWithValue("$enabled", rule.Enabled ? 1 : 0);
+        AddText(command, "$start_local", ToDbLocalTime(rule.StartLocal));
+        AddText(command, "$end_local", ToDbLocalTime(rule.EndLocal));
+        command.Parameters.AddWithValue("$interval_minutes", rule.IntervalMinutes);
+        command.Parameters.AddWithValue("$interval_min_minutes", rule.IntervalMinMinutes);
+        command.Parameters.AddWithValue("$interval_max_minutes", rule.IntervalMaxMinutes);
+        command.Parameters.AddWithValue("$activity_duration_minutes", rule.ActivityDurationMinutes);
+        AddText(command, "$parameter_source", rule.ParameterSource);
+        AddText(command, "$parameter_version", rule.ParameterVersion);
+        command.Parameters.AddWithValue("$daily_goal", rule.DailyGoal);
+        AddText(command, "$quiet_start", ToDbLocalTime(rule.QuietHours.StartLocalTime));
+        AddText(command, "$quiet_end", ToDbLocalTime(rule.QuietHours.EndLocalTime));
+        command.Parameters.AddWithValue("$quiet_enabled", rule.QuietHours.Enabled ? 1 : 0);
+        command.Parameters.AddWithValue("$max_retries", 3);
+        AddText(command, "$created_at", now);
+        AddText(command, "$updated_at", now);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
+    public async Task<ReminderRuntimeState?> ReadReminderRuntimeStateAsync(
+        Guid ruleId,
+        CancellationToken cancellationToken)
+    {
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT rule_id, cycle_id, target_active_seconds, accumulated_active_seconds,
+                   state, attempt, retry_due_at, updated_at
+            FROM reminder_runtime_state
+            WHERE rule_id = $rule_id;
+            """;
+        AddText(command, "$rule_id", ruleId.ToString("N"));
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new ReminderRuntimeState(
+            Guid.ParseExact(reader.GetString(0), "N"),
+            Guid.ParseExact(reader.GetString(1), "N"),
+            reader.GetInt32(2),
+            reader.GetInt32(3),
+            ParseRuntimeStatus(reader.GetString(4)),
+            reader.GetInt32(5),
+            reader.IsDBNull(6) ? null : ParseTimestamp(reader.GetString(6)),
+            ParseTimestamp(reader.GetString(7)));
+    }
+
+    public async Task UpsertReminderRuntimeStateAsync(
+        ReminderRuntimeState state,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO reminder_runtime_state
+                (rule_id, cycle_id, target_active_seconds, accumulated_active_seconds,
+                 state, attempt, retry_due_at, updated_at)
+            VALUES
+                ($rule_id, $cycle_id, $target_active_seconds, $accumulated_active_seconds,
+                 $state, $attempt, $retry_due_at, $updated_at)
+            ON CONFLICT(rule_id) DO UPDATE SET
+                cycle_id = excluded.cycle_id,
+                target_active_seconds = excluded.target_active_seconds,
+                accumulated_active_seconds = excluded.accumulated_active_seconds,
+                state = excluded.state,
+                attempt = excluded.attempt,
+                retry_due_at = excluded.retry_due_at,
+                updated_at = excluded.updated_at;
+            """;
+        AddText(command, "$rule_id", state.RuleId.ToString("N"));
+        AddText(command, "$cycle_id", state.CycleId.ToString("N"));
+        command.Parameters.AddWithValue("$target_active_seconds", state.TargetActiveSeconds);
+        command.Parameters.AddWithValue("$accumulated_active_seconds", state.AccumulatedActiveSeconds);
+        AddText(command, "$state", ToDbRuntimeStatus(state.Status));
+        command.Parameters.AddWithValue("$attempt", state.Attempt);
+        AddNullableText(command, "$retry_due_at", ToDbTimestamp(state.RetryDueAt));
+        AddText(command, "$updated_at", ToDbTimestamp(state.UpdatedAt));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
     public async Task<IReadOnlyList<WorkSession>> ReadWorkSessionsAsync(
         DateOnly day,
         CancellationToken cancellationToken)
@@ -376,7 +520,8 @@ public sealed class SqliteEventRepository(
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT id, rule_id, scheduled_at, displayed_at, channel, action,
-                   action_at, retry_index, suppressed_reason, created_at
+                   action_at, retry_index, suppressed_reason, created_at,
+                   activity_duration_minutes, parameter_source, parameter_version
             FROM reminder_events
             WHERE scheduled_at >= $start AND scheduled_at < $end
             ORDER BY scheduled_at;
@@ -431,7 +576,12 @@ public sealed class SqliteEventRepository(
         reader.IsDBNull(6) ? null : ParseTimestamp(reader.GetString(6)),
         reader.GetInt32(7),
         reader.IsDBNull(8) ? null : reader.GetString(8),
-        ParseTimestamp(reader.GetString(9)));
+        ParseTimestamp(reader.GetString(9)))
+    {
+        ActivityDurationMinutes = reader.GetInt32(10),
+        ParameterSource = reader.GetString(11),
+        ParameterVersion = reader.GetString(12),
+    };
 
     private static string ToDbLocalTime(TimeOnly value) =>
         value.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture);
@@ -449,6 +599,23 @@ public sealed class SqliteEventRepository(
             new DateTimeOffset(localEnd, effectiveTimeZone.GetUtcOffset(localEnd)).ToUniversalTime());
     }
 
+    private static string ToDbRuntimeStatus(ReminderRuntimeStatus status) => status switch
+    {
+        ReminderRuntimeStatus.Accumulating => "accumulating",
+        ReminderRuntimeStatus.Due => "due",
+        ReminderRuntimeStatus.WaitingRetry => "waiting_retry",
+        ReminderRuntimeStatus.Unanswered => "unanswered",
+        _ => throw new ArgumentOutOfRangeException(nameof(status)),
+    };
+
+    private static ReminderRuntimeStatus ParseRuntimeStatus(string value) => value switch
+    {
+        "accumulating" => ReminderRuntimeStatus.Accumulating,
+        "due" => ReminderRuntimeStatus.Due,
+        "waiting_retry" => ReminderRuntimeStatus.WaitingRetry,
+        "unanswered" => ReminderRuntimeStatus.Unanswered,
+        _ => throw new InvalidOperationException($"Unknown reminder runtime status '{value}'."),
+    };
     private static string ToDbOutcome(ReminderOutcome outcome) => outcome switch
     {
         ReminderOutcome.None => "none",
