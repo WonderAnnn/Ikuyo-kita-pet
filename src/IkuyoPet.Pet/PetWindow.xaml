@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Ikuyo Pet"
         Width="380"
-        Height="300"
+        Height="430"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -15,7 +15,7 @@
         SnapsToDevicePixels="True">
     <Canvas x:Name="RootCanvas"
             Width="380"
-            Height="300"
+            Height="430"
             Background="Transparent">
         <Border x:Name="Bubble"
                 Canvas.Left="12"
@@ -42,10 +42,10 @@
                  StrokeThickness="1"
                  Points="0,0 22,0 6,16" />
         <Border x:Name="PetHitArea"
-                Canvas.Left="112"
+                Canvas.Left="110"
                 Canvas.Top="104"
-                Width="156"
-                Height="156"
+                Width="180"
+                Height="300"
                 Background="Transparent"
                 MouseLeftButtonDown="PetHitArea_OnMouseLeftButtonDown">
             <Grid>
@@ -57,8 +57,8 @@
                            Foreground="#F28BB2"
                            FontFamily="Segoe UI Emoji" />
                 <Image x:Name="PetImage"
-                       Width="156"
-                       Height="156"
+                       Width="160"
+                       Height="280"
                        Stretch="Uniform"
                        Visibility="Collapsed" />
             </Grid>

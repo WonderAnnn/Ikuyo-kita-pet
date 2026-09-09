@@ -15,7 +15,7 @@ public sealed class SkinPackageValidatorTests
         try
         {
             WriteManifest(directory, canvasWidth: 160, canvasHeight: 160, fps: 12);
-            WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true);
+            WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true, width: 160, height: 160);
 
             var result = new SkinPackageValidator().Validate(directory);
 
@@ -35,8 +35,8 @@ public sealed class SkinPackageValidatorTests
         try
         {
             WriteManifest(directory, canvasWidth: 16, canvasHeight: 160, fps: 31);
-            WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true);
-            WritePng(Path.Combine(directory, "remind.png"), hasTransparentPixel: true);
+            WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true, width: 160, height: 160);
+            WritePng(Path.Combine(directory, "remind.png"), hasTransparentPixel: true, width: 160, height: 160);
 
             var result = new SkinPackageValidator().Validate(directory);
 
@@ -57,8 +57,8 @@ public sealed class SkinPackageValidatorTests
         try
         {
             WriteManifest(directory, canvasWidth: 160, canvasHeight: 160, fps: 12);
-            WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: false);
-            WritePng(Path.Combine(directory, "remind.png"), hasTransparentPixel: true);
+            WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: false, width: 160, height: 160);
+            WritePng(Path.Combine(directory, "remind.png"), hasTransparentPixel: true, width: 160, height: 160);
 
             var result = new SkinPackageValidator().Validate(directory);
 
@@ -78,8 +78,8 @@ public sealed class SkinPackageValidatorTests
         try
         {
             WriteManifest(directory, canvasWidth: 160, canvasHeight: 160, fps: 12);
-            WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true);
-            WritePng(Path.Combine(directory, "remind.png"), hasTransparentPixel: true);
+            WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true, width: 160, height: 160);
+            WritePng(Path.Combine(directory, "remind.png"), hasTransparentPixel: true, width: 160, height: 160);
 
             var result = new SkinPackageValidator().Validate(directory);
 
@@ -176,7 +176,7 @@ public sealed class SkinPackageValidatorTests
     {
         var directory = CreatePackageDirectory();
         WriteManifest(directory, canvasWidth: 16, canvasHeight: 160, fps: 12);
-        WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true);
+        WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true, width: 160, height: 160);
         return directory;
     }
 
@@ -184,8 +184,8 @@ public sealed class SkinPackageValidatorTests
     {
         var directory = CreatePackageDirectory();
         WriteManifest(directory, canvasWidth: 160, canvasHeight: 160, fps: 12, id, version);
-        WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true);
-        WritePng(Path.Combine(directory, "remind.png"), hasTransparentPixel: true);
+        WritePng(Path.Combine(directory, "idle.png"), hasTransparentPixel: true, width: 160, height: 160);
+        WritePng(Path.Combine(directory, "remind.png"), hasTransparentPixel: true, width: 160, height: 160);
         File.WriteAllText(Path.Combine(directory, "payload.txt"), payload);
         return directory;
     }
@@ -203,20 +203,18 @@ public sealed class SkinPackageValidatorTests
             {"id":"{{id}}","name":"测试皮肤","version":"{{version}}","author":"test","license":"MIT","canvasWidth":{{canvasWidth}},"canvasHeight":{{canvasHeight}},"fps":{{fps}}}
             """);
 
-    private static void WritePng(string path, bool hasTransparentPixel)
+    private static void WritePng(string path, bool hasTransparentPixel, int width = 1, int height = 1)
     {
         var alpha = hasTransparentPixel ? (byte)0 : (byte)255;
-        var pixels = new[] { (byte)255, (byte)128, (byte)196, alpha };
-        var source = BitmapSource.Create(
-            1,
-            1,
-            96,
-            96,
-            PixelFormats.Bgra32,
-            null,
-            pixels,
-            4);
-
+        var pixels = new byte[width * height * 4];
+        for (var index = 0; index < pixels.Length; index += 4)
+        {
+            pixels[index] = 255;
+            pixels[index + 1] = 128;
+            pixels[index + 2] = 196;
+            pixels[index + 3] = alpha;
+        }
+        var source = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
         using var stream = File.Create(path);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(source));

@@ -12,57 +12,32 @@ public sealed record SkinValidationResult(
 
 public sealed class SkinPackageValidator
 {
-    private readonly JsonSerializerOptions jsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
+    private static readonly byte[] PngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
+    private readonly JsonSerializerOptions jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     public SkinValidationResult Validate(string packageDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageDirectory);
-
         var errors = new List<string>();
-        if (!Directory.Exists(packageDirectory))
-        {
-            return Invalid($"Package directory does not exist: {packageDirectory}");
-        }
+        if (!Directory.Exists(packageDirectory)) return Invalid($"Package directory does not exist: {packageDirectory}");
 
-        var manifestPath = Path.Combine(packageDirectory, "manifest.json");
         SkinManifest? manifest = null;
-        if (!File.Exists(manifestPath))
-        {
-            errors.Add("manifest.json is required.");
-        }
+        var manifestPath = Path.Combine(packageDirectory, "manifest.json");
+        if (!File.Exists(manifestPath)) errors.Add("manifest.json is required.");
         else
         {
             try
             {
-                manifest = JsonSerializer.Deserialize<SkinManifest>(
-                    File.ReadAllText(manifestPath),
-                    jsonOptions);
-                if (manifest is null)
-                {
-                    errors.Add("manifest.json must contain an object.");
-                }
+                manifest = JsonSerializer.Deserialize<SkinManifest>(File.ReadAllText(manifestPath), jsonOptions);
+                if (manifest is null) errors.Add("manifest.json must contain an object.");
             }
-            catch (JsonException)
-            {
-                errors.Add("manifest.json is not valid JSON for SkinManifest.");
-            }
-            catch (IOException)
-            {
-                errors.Add("manifest.json could not be read.");
-            }
+            catch (JsonException) { errors.Add("manifest.json is not valid JSON for SkinManifest."); }
+            catch (IOException) { errors.Add("manifest.json could not be read."); }
         }
 
-        if (manifest is not null)
-        {
-            ValidateManifest(manifest, errors);
-        }
-
-        ValidateTransparentPng(packageDirectory, "idle.png", errors);
-        ValidateTransparentPng(packageDirectory, "remind.png", errors);
-
+        if (manifest is not null) ValidateManifest(manifest, errors);
+        ValidateTransparentPng(packageDirectory, "idle.png", errors, manifest);
+        ValidateTransparentPng(packageDirectory, "remind.png", errors, manifest);
         return new SkinValidationResult(errors.Count == 0, manifest, errors);
     }
 
@@ -78,35 +53,34 @@ public sealed class SkinPackageValidator
         if (manifest.Fps is < 1 or > 30) errors.Add("manifest.fps must be between 1 and 30.");
     }
 
-    private static void ValidateTransparentPng(
-        string packageDirectory,
-        string fileName,
-        List<string> errors)
+    private static void ValidateTransparentPng(string packageDirectory, string fileName, List<string> errors, SkinManifest? manifest)
     {
         var path = Path.Combine(packageDirectory, fileName);
-        if (!File.Exists(path))
-        {
-            errors.Add($"{fileName} is required.");
-            return;
-        }
-
+        if (!File.Exists(path)) { errors.Add($"{fileName} is required."); return; }
         try
         {
             using var stream = File.OpenRead(path);
-            var frame = BitmapFrame.Create(
-                stream,
-                BitmapCreateOptions.PreservePixelFormat,
-                BitmapCacheOption.OnLoad);
+            Span<byte> signature = stackalloc byte[PngSignature.Length];
+            if (stream.Read(signature) != PngSignature.Length || !signature.SequenceEqual(PngSignature))
+            {
+                errors.Add($"{fileName} is not a PNG file.");
+                return;
+            }
+            stream.Position = 0;
+            var frame = BitmapFrame.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            if (manifest is not null && manifest.CanvasWidth is >= 32 and <= 2048 && manifest.CanvasHeight is >= 32 and <= 2048 &&
+                (frame.PixelWidth != manifest.CanvasWidth || frame.PixelHeight != manifest.CanvasHeight))
+            {
+                errors.Add($"{fileName} dimensions {frame.PixelWidth}x{frame.PixelHeight} must match manifest canvas {manifest.CanvasWidth}x{manifest.CanvasHeight}.");
+            }
             var converted = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
             var stride = converted.PixelWidth * 4;
             var pixels = new byte[stride * converted.PixelHeight];
             converted.CopyPixels(pixels, stride, 0);
-
             for (var index = 3; index < pixels.Length; index += 4)
             {
                 if (pixels[index] < 255) return;
             }
-
             errors.Add($"{fileName} must contain at least one transparent pixel.");
         }
         catch (Exception exception) when (exception is IOException or NotSupportedException or InvalidOperationException or ArgumentException)
@@ -115,6 +89,5 @@ public sealed class SkinPackageValidator
         }
     }
 
-    private static SkinValidationResult Invalid(string error) =>
-        new(false, null, [error]);
+    private static SkinValidationResult Invalid(string error) => new(false, null, [error]);
 }
