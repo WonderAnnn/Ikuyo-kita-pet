@@ -6,7 +6,7 @@
     <AssemblyName>IkuyoPet.Pet</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="..\..\assets\interactions\default\click.zh-CN.json" Link="interactions\default\click.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\IkuyoPet.Core\IkuyoPet.Core.csproj" />
   </ItemGroup>
 </Project>
-
