@@ -8,6 +8,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="local-skins\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\IkuyoPet.Core\IkuyoPet.Core.csproj" />
     <ProjectReference Include="..\IkuyoPet.Infrastructure\IkuyoPet.Infrastructure.csproj" />
     <ProjectReference Include="..\IkuyoPet.Pet\IkuyoPet.Pet.csproj" />

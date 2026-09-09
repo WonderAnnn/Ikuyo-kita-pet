@@ -5,9 +5,11 @@ using System.Windows;
 using IkuyoPet.Core.Dashboard;
 using IkuyoPet.Core.Presentation;
 using IkuyoPet.Core.Reminders;
+using IkuyoPet.Core.Skins;
 using IkuyoPet.Infrastructure.Storage;
 using IkuyoPet.Infrastructure.Windows;
 using IkuyoPet.Pet;
+using IkuyoPet.Pet.Skins;
 
 namespace IkuyoPet.App;
 
@@ -40,6 +42,20 @@ public partial class App : Application
         viewModel.LoadSettingsAsync(CancellationToken.None).GetAwaiter().GetResult();
         var window = new MainWindow(viewModel);
         petWindow = new PetWindow();
+        var skinRoot = ResolveSkinRoot(dataRoot);
+        var selectedSkin = new SkinSelectionStore(Path.Combine(dataRoot, "skins"))
+            .LoadAsync(CancellationToken.None).GetAwaiter().GetResult()
+            ?? new SkinSelection("user.ikuyo-local", "1.0.0");
+        var skinResult = new SkinBootstrapper(new SkinPackageValidator(), skinRoot)
+            .ResolveWithDiagnostics(selectedSkin);
+        if (skinResult.Assets is not null)
+        {
+            petWindow.SetSkinAssets(skinResult.Assets);
+        }
+        else if (!string.IsNullOrWhiteSpace(skinResult.Error))
+        {
+            Debug.WriteLine(skinResult.Error);
+        }
         var actionCoordinator = new ReminderActionCoordinator(
             repository,
             new ReminderStateMachine(3),
@@ -64,7 +80,10 @@ public partial class App : Application
             isPaused: () => pausedUntil is { } until && until > DateTimeOffset.UtcNow);
 
         petWindow.ActionInvoked += async (_, args) =>
+        {
             await actionCoordinator.HandleAsync(args.EventId, args.Action, CancellationToken.None);
+            petWindow.ShowIdleSkin();
+        };
         viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName != nameof(MainWindowViewModel.PetEnabled)) return;
@@ -87,6 +106,12 @@ public partial class App : Application
         window.Show();
     }
 
+    private static string ResolveSkinRoot(string dataRoot)
+    {
+        var userRoot = Path.Combine(dataRoot, "skins");
+        var bundledRoot = Path.Combine(AppContext.BaseDirectory, "local-skins");
+        return Directory.Exists(userRoot) || !Directory.Exists(bundledRoot) ? userRoot : bundledRoot;
+    }
     protected override void OnExit(ExitEventArgs e)
     {
         lifetimeCancellation?.Cancel();

@@ -57,6 +57,8 @@
                            Foreground="#F28BB2"
                            FontFamily="Segoe UI Emoji" />
                 <Image x:Name="PetImage"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Bottom"
                        Width="160"
                        Height="280"
                        Stretch="Uniform"

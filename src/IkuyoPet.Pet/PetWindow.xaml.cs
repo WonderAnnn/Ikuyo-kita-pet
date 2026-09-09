@@ -13,6 +13,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 {
     private bool hasPosition;
     private PetReminderView? currentView;
+    private SkinAssetSet? skinAssets;
 
     public PetWindow()
     {
@@ -50,6 +51,23 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         base.Hide();
     }
 
+    public void SetSkinAssets(SkinAssetSet assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+        skinAssets = assets;
+        ShowIdleSkin();
+    }
+
+    public void ShowIdleSkin()
+    {
+        if (skinAssets is not null) SetSkinImage(skinAssets.IdlePath);
+    }
+
+    public void ShowReminderSkin()
+    {
+        if (skinAssets is not null) SetSkinImage(skinAssets.RemindPath);
+    }
+
     public void SetSkinImage(string imagePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(imagePath);
@@ -72,6 +90,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     private void ShowCore(PetReminderView view)
     {
         currentView = view;
+        ShowReminderSkin();
         RenderView(view);
         if (!hasPosition)
         {
