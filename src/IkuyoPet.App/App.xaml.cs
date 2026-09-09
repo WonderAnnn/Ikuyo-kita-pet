@@ -24,123 +24,136 @@ public partial class App : Application
     private WorkTrackingLoop? workTrackingLoop;
     private Task? workTrackingTask;
 
-    private void OnStartup(object sender, StartupEventArgs e)
+    private async void OnStartup(object sender, StartupEventArgs e)
     {
-        var dataRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "IkuyoPet");
-        Directory.CreateDirectory(dataRoot);
-        var databasePath = Path.Combine(dataRoot, "ikuyo-pet.db");
-        var connectionString = $"Data Source={databasePath};Mode=ReadWriteCreate;Cache=Shared";
-        new DatabaseMigrator(connectionString).MigrateAsync().GetAwaiter().GetResult();
-        var repository = new SqliteEventRepository(connectionString);
-        var dashboard = new DashboardQueryService(repository);
-        var startupManager = new WindowsStartupManager(
-            new CurrentUserStartupEntryStore(),
-            Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "IkuyoPet.exe"));
-        var appSettingsStore = new AppSettingsStore(connectionString);
-        var viewModel = new MainWindowViewModel(dashboard, repository, startupManager, appSettingsStore);
-        viewModel.LoadSettingsAsync(CancellationToken.None).GetAwaiter().GetResult();
-        var window = new MainWindow(viewModel);
-        petWindow = new PetWindow();
-        var skinSelectionStore = new SkinSelectionStore(Path.Combine(dataRoot, "skins"));
-        var selectedSkin = skinSelectionStore
-            .LoadAsync(CancellationToken.None).GetAwaiter().GetResult()
-            ?? new SkinSelection("user.ikuyo-local", "1.0.0");
-        var skinRoot = ResolveSkinRoot(dataRoot, selectedSkin);
-        var skinResult = new SkinBootstrapper(new SkinPackageValidator(), skinRoot)
-            .ResolveWithDiagnostics(selectedSkin);
-        if (skinResult.Assets is not null)
+        try
         {
-            petWindow.SetSkinAssets(skinResult.Assets);
-            skinSelectionStore.SaveAsync(selectedSkin, CancellationToken.None).GetAwaiter().GetResult();
-            viewModel.SetCurrentSkin(selectedSkin.Id, selectedSkin.Version, loaded: true);
-        }
-        else
-        {
-            viewModel.SetCurrentSkin(selectedSkin.Id, selectedSkin.Version, loaded: false, skinResult.Error);
-            if (!string.IsNullOrWhiteSpace(skinResult.Error)) Debug.WriteLine(skinResult.Error);
-        }
-        var actionCoordinator = new ReminderActionCoordinator(
-            repository,
-            new ReminderStateMachine(3),
-            TimeProvider.System);
-        notificationSink = new WindowsAppNotificationSink(new NotificationActionHandler(
-            actionCoordinator,
-            cancellationToken => viewModel.RefreshAsync(
-                DateOnly.FromDateTime(viewModel.SelectedDate),
-                cancellationToken)));
-        var notificationPresenter = new WindowsNotificationPresenter(notificationSink);
-        var petPresenter = new PetReminderPresenter(petWindow);
-        var router = new ReminderPresentationRouter(petPresenter, notificationPresenter);
-        DateTimeOffset? pausedUntil = null;
-        var activityProbe = new ForegroundActivityProbe(viewModel.IsTrackedProcess);
-        var reminderLoop = new ReminderLoop(
-            repository,
-            router,
-            () => viewModel.PetEnabled,
-            TimeProvider.System,
-            TimeZoneInfo.Local,
-            isPaused: () => pausedUntil is { } until && until > DateTimeOffset.UtcNow,
-            isSuppressed: activityProbe.IsReminderSuppressed,
-            actionCoordinator: actionCoordinator);
-        workTrackingLoop = new WorkTrackingLoop(
-            new WorkTrackingService(
-                activityProbe,
-                repository,
-                displayNameResolver: viewModel.GetTrackedDisplayName),
-            reminderLoop.ConsumeActiveWorkAsync);
-
-        petWindow.ActionInvoked += async (_, args) =>
-        {
-            try
+            var dataRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "IkuyoPet");
+            Directory.CreateDirectory(dataRoot);
+            var databasePath = Path.Combine(dataRoot, "ikuyo-pet.db");
+            var connectionString = $"Data Source={databasePath};Mode=ReadWriteCreate;Cache=Shared";
+            await new DatabaseMigrator(connectionString).MigrateAsync();
+            var repository = new SqliteEventRepository(connectionString);
+            var dashboard = new DashboardQueryService(repository);
+            var startupManager = new WindowsStartupManager(
+                new CurrentUserStartupEntryStore(),
+                Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "IkuyoPet.exe"));
+            var appSettingsStore = new AppSettingsStore(connectionString);
+            var viewModel = new MainWindowViewModel(dashboard, repository, startupManager, appSettingsStore);
+            await viewModel.LoadSettingsAsync(CancellationToken.None);
+            var window = new MainWindow(viewModel);
+            petWindow = new PetWindow();
+            var skinSelectionStore = new SkinSelectionStore(Path.Combine(dataRoot, "skins"));
+            var selectedSkin = await skinSelectionStore
+                .LoadAsync(CancellationToken.None)
+                ?? new SkinSelection("user.ikuyo-local", "1.0.0");
+            var skinRoot = ResolveSkinRoot(dataRoot, selectedSkin);
+            var skinResult = new SkinBootstrapper(new SkinPackageValidator(), skinRoot)
+                .ResolveWithDiagnostics(selectedSkin);
+            if (skinResult.Assets is not null)
             {
-                var result = await actionCoordinator.HandleAsync(
-                    args.EventId,
-                    args.Action,
-                    CancellationToken.None);
-                if (result is { Applied: true })
+                petWindow.SetSkinAssets(skinResult.Assets);
+                await skinSelectionStore.SaveAsync(selectedSkin, CancellationToken.None);
+                viewModel.SetCurrentSkin(selectedSkin.Id, selectedSkin.Version, loaded: true);
+            }
+            else
+            {
+                viewModel.SetCurrentSkin(selectedSkin.Id, selectedSkin.Version, loaded: false, skinResult.Error);
+                if (!string.IsNullOrWhiteSpace(skinResult.Error)) Debug.WriteLine(skinResult.Error);
+            }
+            var actionCoordinator = new ReminderActionCoordinator(
+                repository,
+                new ReminderStateMachine(3),
+                TimeProvider.System);
+            notificationSink = new WindowsAppNotificationSink(new NotificationActionHandler(
+                actionCoordinator,
+                cancellationToken => viewModel.RefreshAsync(
+                    DateOnly.FromDateTime(viewModel.SelectedDate),
+                    cancellationToken)));
+            var notificationPresenter = new WindowsNotificationPresenter(notificationSink);
+            var petPresenter = new PetReminderPresenter(petWindow);
+            var router = new ReminderPresentationRouter(petPresenter, notificationPresenter);
+            DateTimeOffset? pausedUntil = null;
+            var activityProbe = new ForegroundActivityProbe(viewModel.IsTrackedProcess);
+            var reminderLoop = new ReminderLoop(
+                repository,
+                router,
+                () => viewModel.PetEnabled,
+                TimeProvider.System,
+                TimeZoneInfo.Local,
+                isPaused: () => pausedUntil is { } until && until > DateTimeOffset.UtcNow,
+                isSuppressed: activityProbe.IsReminderSuppressed,
+                actionCoordinator: actionCoordinator);
+            workTrackingLoop = new WorkTrackingLoop(
+                new WorkTrackingService(
+                    activityProbe,
+                    repository,
+                    displayNameResolver: viewModel.GetTrackedDisplayName),
+                reminderLoop.ConsumeActiveWorkAsync);
+
+            petWindow.ActionInvoked += async (_, args) =>
+            {
+                try
                 {
-                    await viewModel.RefreshAsync(
-                        DateOnly.FromDateTime(viewModel.SelectedDate),
+                    var result = await actionCoordinator.HandleAsync(
+                        args.EventId,
+                        args.Action,
                         CancellationToken.None);
-                    await petPresenter.ShowFeedbackAsync(args.Action, CancellationToken.None);
+                    if (result is { Applied: true })
+                    {
+                        await viewModel.RefreshAsync(
+                            DateOnly.FromDateTime(viewModel.SelectedDate),
+                            CancellationToken.None);
+                        await petPresenter.ShowFeedbackAsync(args.Action, CancellationToken.None);
+                    }
+                    else
+                    {
+                        petWindow.RestoreIdle();
+                    }
                 }
-                else
+                catch (Exception exception)
                 {
+                    Debug.WriteLine($"Reminder action failed: {exception}");
                     petWindow.RestoreIdle();
                 }
-            }
-            catch (Exception exception)
+            };
+            viewModel.PropertyChanged += (_, args) =>
             {
-                Debug.WriteLine($"Reminder action failed: {exception}");
-                petWindow.RestoreIdle();
-            }
-        };
-        viewModel.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName != nameof(MainWindowViewModel.PetEnabled)) return;
-            if (viewModel.PetEnabled)
-            {
-                petWindow.RestoreIdle();
-                petWindow.Show();
-            }
-            else petWindow.Hide();
-        };
+                if (args.PropertyName != nameof(MainWindowViewModel.PetEnabled)) return;
+                if (viewModel.PetEnabled)
+                {
+                    petWindow.RestoreIdle();
+                    petWindow.Show();
+                }
+                else petWindow.Hide();
+            };
 
-        trayIconHost = new TrayIconHost(
-            window,
-            petWindow,
-            setPetEnabled: enabled => viewModel.PetEnabled = enabled,
-            pauseReminders: duration => pausedUntil = DateTimeOffset.UtcNow.Add(duration),
-            exitApplication: Shutdown);
-        lifetimeCancellation = new CancellationTokenSource();
-        reminderTask = RunReminderLoopAsync(reminderLoop, lifetimeCancellation.Token);
-        workTrackingTask = RunWorkTrackingLoopAsync(workTrackingLoop, lifetimeCancellation.Token);
-        if (viewModel.PetEnabled) petWindow.Show();
-        window.Closed += (_, _) => trayIconHost?.Dispose();
-        MainWindow = window;
-        window.Show();
+            trayIconHost = new TrayIconHost(
+                window,
+                petWindow,
+                setPetEnabled: enabled => viewModel.PetEnabled = enabled,
+                pauseReminders: duration => pausedUntil = DateTimeOffset.UtcNow.Add(duration),
+                exitApplication: Shutdown);
+            lifetimeCancellation = new CancellationTokenSource();
+            reminderTask = RunReminderLoopAsync(reminderLoop, lifetimeCancellation.Token);
+            workTrackingTask = RunWorkTrackingLoopAsync(workTrackingLoop, lifetimeCancellation.Token);
+            if (viewModel.PetEnabled) petWindow.Show();
+            window.Closed += (_, _) => trayIconHost?.Dispose();
+            MainWindow = window;
+            window.Show();
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine($"Ikuyo Pet startup failed: {exception}");
+            MessageBox.Show(
+                $"Ikuyo Pet 启动失败：{exception.Message}",
+                "Ikuyo Pet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(-1);
+        }
     }
 
     private static string ResolveSkinRoot(string dataRoot, SkinSelection selection)
