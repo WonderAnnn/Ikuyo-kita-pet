@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using H.NotifyIcon;
@@ -15,6 +16,7 @@ public sealed class TrayIconHost : IDisposable
     private readonly Action<bool>? setPetEnabled;
     private readonly Action? exitApplication;
     private readonly TaskbarIcon taskbarIcon;
+    private readonly Icon trayIcon;
     private MenuItem? pauseMenuItem;
     private bool allowWindowClose;
     private bool disposed;
@@ -31,9 +33,10 @@ public sealed class TrayIconHost : IDisposable
         this.pauseReminders = pauseReminders;
         this.setPetEnabled = setPetEnabled;
         this.exitApplication = exitApplication;
+        trayIcon = LoadTrayIcon();
         taskbarIcon = new TaskbarIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = trayIcon,
             ToolTipText = "Ikuyo Pet",
             ContextMenu = CreateContextMenu(),
         };
@@ -90,8 +93,28 @@ public sealed class TrayIconHost : IDisposable
         disposed = true;
         mainWindow.Closing -= MainWindowOnClosing;
         taskbarIcon.Dispose();
+        trayIcon.Dispose();
     }
 
+    private static Icon LoadTrayIcon()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(processPath) && File.Exists(processPath))
+            {
+                using var associatedIcon = Icon.ExtractAssociatedIcon(processPath!);
+                if (associatedIcon is not null) return (Icon)associatedIcon.Clone();
+            }
+        }
+#pragma warning disable CA1031
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+        }
+
+        return (Icon)SystemIcons.Application.Clone();
+    }
     private ContextMenu CreateContextMenu()
     {
         var menu = new ContextMenu();

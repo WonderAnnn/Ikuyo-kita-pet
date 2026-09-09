@@ -6,12 +6,16 @@
     <RootNamespace>IkuyoPet.App</RootNamespace>
     <AssemblyName>IkuyoPet</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <LocalAssetsRoot Condition="'$(LocalAssetsRoot)' == ''">$(MSBuildProjectDirectory)\..\..\local-assets</LocalAssetsRoot>
+    <LocalBrandingIcon>$(LocalAssetsRoot)\branding\icon\icon256.ico</LocalBrandingIcon>
+    <ApplicationIcon Condition="Exists('$(LocalBrandingIcon)')">$(LocalBrandingIcon)</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="local-skins\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json" Link="interactions\ikuyo-click.zh-CN.json" Condition="Exists('$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\IkuyoPet.Core\IkuyoPet.Core.csproj" />
     <ProjectReference Include="..\IkuyoPet.Infrastructure\IkuyoPet.Infrastructure.csproj" />
     <ProjectReference Include="..\IkuyoPet.Pet\IkuyoPet.Pet.csproj" />

@@ -13,8 +13,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'IkuyoPet.sln'))) { throw 
 $version = (& $dotnet --version).Trim()
 if ($LASTEXITCODE -ne 0 -or $version -notmatch '^10\.') { throw "Requires .NET 10 SDK, got '$version'" }
 
-$trackedPrivate = (& git -C $repoRoot ls-files -- 'local-skins')
-if ($LASTEXITCODE -eq 0 -and $trackedPrivate) { throw 'Private local-skins files must not be tracked by Git.' }
+$trackedPrivate = (& git -C $repoRoot ls-files -- 'local-skins' 'local-assets')
+if ($LASTEXITCODE -eq 0 -and $trackedPrivate) { throw 'Private local-skins and local-assets files must not be tracked by Git.' }
 
 if ($PublishRoot) {
     $exe = Join-Path $PublishRoot 'IkuyoPet.exe'
@@ -27,4 +27,7 @@ if ($PublishRoot) {
     DotNetVersion = $version
     PublishRoot = if ($PublishRoot) { (Resolve-Path $PublishRoot).Path } else { $null }
     PrivateSkinTracked = $false
+    PrivateAssetsTracked = $false
+    PrivateBrandingPresent = Test-Path -LiteralPath (Join-Path $repoRoot 'local-assets\branding\icon\icon256.ico')
+    PrivateInteractionPresent = Test-Path -LiteralPath (Join-Path $repoRoot 'local-assets\interactions\ikuyo-click.zh-CN.json')
 }
