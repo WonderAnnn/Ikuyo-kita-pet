@@ -1,3 +1,4 @@
+using Xunit;
 using IkuyoPet.Pet.Interaction;
 
 namespace IkuyoPet.Infrastructure.Tests.Pet;

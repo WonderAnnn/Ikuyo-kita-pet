@@ -1,3 +1,4 @@
+using Xunit;
 using System.Windows;
 using IkuyoPet.Pet.Interaction;
 
