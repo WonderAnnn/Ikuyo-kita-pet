@@ -7,11 +7,11 @@
             <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="提醒与活动日志"/>
             <TextBlock Margin="0,8,0,16" Foreground="#FF68778D" Text="动作完成后会立即刷新；只记录日期、时间、渠道和结果，不记录睡眠或医疗信息。" TextWrapping="Wrap"/>
         </StackPanel>
-        <StackPanel Grid.Row="1" Margin="0,0,0,12" Orientation="Horizontal">
-            <DatePicker Width="135" SelectedDate="{Binding SelectedDate, Mode=TwoWay}"/>
-            <ComboBox Margin="18,0,8,0" Width="100" SelectedValue="{Binding KindFilter, Mode=TwoWay}" SelectedValuePath="Content"><ComboBoxItem Content="全部"/><ComboBoxItem Content="喝水"/><ComboBoxItem Content="活动"/><ComboBoxItem Content="工作"/></ComboBox>
-            <ComboBox Width="110" SelectedValue="{Binding OutcomeFilter, Mode=TwoWay}" SelectedValuePath="Content"><ComboBoxItem Content="全部结果"/><ComboBoxItem Content="完成"/><ComboBoxItem Content="搁置"/><ComboBoxItem Content="跳过"/><ComboBoxItem Content="未响应"/><ComboBoxItem Content="待处理"/></ComboBox>
-        </StackPanel>
+        <Border Grid.Row="1" Style="{StaticResource LogFilterBarStyle}"><WrapPanel Orientation="Horizontal">
+            <DatePicker Style="{StaticResource LogDatePickerStyle}" SelectedDate="{Binding SelectedDate, Mode=TwoWay}" AutomationProperties.Name="日期筛选" Margin="0,0,12,0"/>
+            <ComboBox Style="{StaticResource LogComboBoxStyle}" Width="116" SelectedValue="{Binding KindFilter, Mode=TwoWay}" SelectedValuePath="Content" AutomationProperties.Name="类型筛选" Margin="0,0,12,0"><ComboBoxItem Content="全部"/><ComboBoxItem Content="喝水"/><ComboBoxItem Content="活动"/><ComboBoxItem Content="工作"/></ComboBox>
+            <ComboBox Style="{StaticResource LogComboBoxStyle}" Width="132" SelectedValue="{Binding OutcomeFilter, Mode=TwoWay}" SelectedValuePath="Content" AutomationProperties.Name="结果筛选"><ComboBoxItem Content="全部结果"/><ComboBoxItem Content="完成"/><ComboBoxItem Content="搁置"/><ComboBoxItem Content="跳过"/><ComboBoxItem Content="未响应"/><ComboBoxItem Content="待处理"/></ComboBox>
+        </WrapPanel></Border>
         <Grid Grid.Row="2">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding TimelineItems}">
