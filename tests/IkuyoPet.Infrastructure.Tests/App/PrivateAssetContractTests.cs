@@ -36,10 +36,11 @@ public sealed class PrivateAssetContractTests
         var projectPath = Path.Combine(RepositoryPaths.Root, "src", "IkuyoPet.App", "IkuyoPet.App.csproj");
         var project = XDocument.Load(projectPath);
         var content = project.Descendants("Content").Single(element =>
-            element.Attribute("Link")?.Value == @"interactions\ikuyo-click.zh-CN.json");
+            element.Attribute("Link")?.Value == @"interactions\ikuyo-click.json");
 
         Assert.Equal("Exists('$(LocalAssetsRoot)\\interactions\\ikuyo-click.zh-CN.json')", content.Attribute("Condition")?.Value);
         Assert.Equal(@"$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json", content.Attribute("Include")?.Value);
+        Assert.DoesNotContain(".zh-CN", content.Attribute("Link")?.Value);
         Assert.Equal("PreserveNewest", content.Attribute("CopyToOutputDirectory")?.Value);
         Assert.Equal("PreserveNewest", content.Attribute("CopyToPublishDirectory")?.Value);
     }

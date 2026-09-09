@@ -15,7 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="local-skins\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json" Link="interactions\ikuyo-click.zh-CN.json" Condition="Exists('$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json" Link="interactions\ikuyo-click.json" Condition="Exists('$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\IkuyoPet.Core\IkuyoPet.Core.csproj" />
     <ProjectReference Include="..\IkuyoPet.Infrastructure\IkuyoPet.Infrastructure.csproj" />
     <ProjectReference Include="..\IkuyoPet.Pet\IkuyoPet.Pet.csproj" />
