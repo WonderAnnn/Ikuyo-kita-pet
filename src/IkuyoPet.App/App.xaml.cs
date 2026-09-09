@@ -65,19 +65,21 @@ public partial class App : Application
         var petPresenter = new PetReminderPresenter(petWindow);
         var router = new ReminderPresentationRouter(petPresenter, notificationPresenter);
         DateTimeOffset? pausedUntil = null;
-        workTrackingLoop = new WorkTrackingLoop(
-            new WorkTrackingService(
-                new ForegroundActivityProbe(viewModel.IsTrackedProcess),
-                repository,
-                displayNameResolver: viewModel.GetTrackedDisplayName));
-
+        var activityProbe = new ForegroundActivityProbe(viewModel.IsTrackedProcess);
         var reminderLoop = new ReminderLoop(
             repository,
             router,
             () => viewModel.PetEnabled,
             TimeProvider.System,
             TimeZoneInfo.Local,
-            isPaused: () => pausedUntil is { } until && until > DateTimeOffset.UtcNow);
+            isPaused: () => pausedUntil is { } until && until > DateTimeOffset.UtcNow,
+            isSuppressed: activityProbe.IsReminderSuppressed);
+        workTrackingLoop = new WorkTrackingLoop(
+            new WorkTrackingService(
+                activityProbe,
+                repository,
+                displayNameResolver: viewModel.GetTrackedDisplayName),
+            reminderLoop.ConsumeActiveWorkAsync);
 
         petWindow.ActionInvoked += async (_, args) =>
         {

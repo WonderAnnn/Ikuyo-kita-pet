@@ -71,6 +71,11 @@ public sealed class ForegroundActivityProbe : IActivityProbe
             sessionState.IsPresentationMode);
     }
 
+    public bool IsReminderSuppressed()
+    {
+        var foregroundWindow = GetForegroundWindow();
+        return _sessionProbe.Capture(foregroundWindow).SuppressActiveWork;
+    }
     private static Func<string, bool> CreateWhitelistPredicate(IEnumerable<string> whitelist)
     {
         ArgumentNullException.ThrowIfNull(whitelist);
