@@ -12,6 +12,7 @@ public sealed class TrayIconHost : IDisposable
 {
     private readonly MainWindow mainWindow;
     private readonly PetWindow petWindow;
+    private readonly TrayWindowController windowController;
     private readonly Action<TimeSpan>? pauseReminders;
     private readonly Action<bool>? setPetEnabled;
     private readonly Action? exitApplication;
@@ -30,6 +31,7 @@ public sealed class TrayIconHost : IDisposable
     {
         this.mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
         this.petWindow = petWindow ?? throw new ArgumentNullException(nameof(petWindow));
+        windowController = new TrayWindowController(new WpfTrayWindowSurface(mainWindow));
         this.pauseReminders = pauseReminders;
         this.setPetEnabled = setPetEnabled;
         this.exitApplication = exitApplication;
@@ -45,6 +47,7 @@ public sealed class TrayIconHost : IDisposable
         taskbarIcon.TrayContextMenuOpen += (_, _) => UpdatePauseLabel();
         taskbarIcon.ForceCreate(true);
         mainWindow.Closing += MainWindowOnClosing;
+        mainWindow.MinimizeRequested += MainWindowOnMinimizeRequested;
     }
 
     public bool IsPetVisible => petWindow.IsVisible;
@@ -73,8 +76,7 @@ public sealed class TrayIconHost : IDisposable
                 UpdatePauseLabel();
                 break;
             case TrayCommand.OpenToday:
-                mainWindow.Show();
-                mainWindow.Activate();
+                windowController.Restore();
                 break;
             case TrayCommand.Exit:
                 allowWindowClose = true;
@@ -92,6 +94,7 @@ public sealed class TrayIconHost : IDisposable
         if (disposed) return;
         disposed = true;
         mainWindow.Closing -= MainWindowOnClosing;
+        mainWindow.MinimizeRequested -= MainWindowOnMinimizeRequested;
         taskbarIcon.Dispose();
         trayIcon.Dispose();
     }
@@ -146,6 +149,12 @@ public sealed class TrayIconHost : IDisposable
     {
         if (allowWindowClose) return;
         e.Cancel = true;
-        mainWindow.Hide();
+        windowController.HideToTray();
+    }
+
+    private void MainWindowOnMinimizeRequested(object? sender, EventArgs e)
+    {
+        windowController.HideToTray();
     }
 }
+

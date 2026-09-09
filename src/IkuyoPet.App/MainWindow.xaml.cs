@@ -7,11 +7,14 @@ namespace IkuyoPet.App;
 
 public partial class MainWindow : Window
 {
+    public event EventHandler? MinimizeRequested;
+
     public MainWindow(MainWindowViewModel? viewModel = null)
     {
         InitializeComponent();
         DataContext = viewModel;
         Loaded += OnLoaded;
+        StateChanged += OnStateChanged;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -57,4 +60,16 @@ public partial class MainWindow : Window
         foreach (var panel in pages.Values) panel.Visibility = Visibility.Collapsed;
         pages[selected].Visibility = Visibility.Visible;
     }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        StateChanged -= OnStateChanged;
+        base.OnClosed(e);
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Minimized) MinimizeRequested?.Invoke(this, EventArgs.Empty);
+    }
 }
+
