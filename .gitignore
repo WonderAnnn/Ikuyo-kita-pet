@@ -1,15 +1,40 @@
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.fleet/
+.idea/
+.vs/
 .superpowers/brainstorm/
+
+# .NET build and test output
 bin/
 obj/
-.vs/
 *.user
 *.suo
+TestResults/
+artifacts/
 publish/
+*.nupkg
+*.snupkg
+
+# Local databases, logs and exports
 data/
+logs/
+exports/
 *.db
+*.db-journal
 *.db-shm
 *.db-wal
-local-skins/
-.idea/
-TestResults/
+
+# Machine-specific development environment
 eng/toolchain.local.psd1
+.env
+.env.*
+!.env.example
+
+# User-provided or third-party skins must stay local
+local-skins/
+user-skins/
+assets/skins/private/
+assets/skins/third-party/

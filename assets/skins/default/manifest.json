@@ -1,0 +1,10 @@
+{
+  "id": "ikuyo-pet.default-placeholder",
+  "name": "Ikuyo Pet Default Placeholder",
+  "version": "0.1.0",
+  "author": "Ikuyo Pet contributors",
+  "license": "MIT",
+  "canvasWidth": 512,
+  "canvasHeight": 512,
+  "fps": 12
+}
