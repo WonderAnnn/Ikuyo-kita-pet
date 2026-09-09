@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Documents;
 using IkuyoPet.Core.Reminders;
 using IkuyoPet.Pet.Skins;
+using IkuyoPet.Pet.Interaction;
 
 namespace IkuyoPet.Pet;
 
@@ -15,6 +16,12 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     private bool hasPosition;
     private PetReminderView? currentView;
     private SkinAssetSet? skinAssets;
+    private readonly PetGestureTracker gestureTracker = new(SystemParameters.MinimumHorizontalDragDistance, SystemParameters.MinimumVerticalDragDistance);
+    private readonly PetBubbleStateMachine bubbleState = new();
+    private CancellationTokenSource? interactionBubbleCancellation;
+    private bool dragStarted;
+
+    public event EventHandler? InteractionRequested;
 
     public PetWindow()
     {
@@ -49,6 +56,11 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             return;
         }
 
+        if (bubbleState.State == PetBubbleState.Interaction)
+        {
+            interactionBubbleCancellation?.Cancel();
+            bubbleState.RestoreIdle();
+        }
         base.Hide();
     }
     public async Task ShowFeedbackAsync(string text, CancellationToken cancellationToken)
@@ -58,6 +70,8 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 
         await Dispatcher.InvokeAsync(() =>
         {
+            interactionBubbleCancellation?.Cancel();
+            if (!bubbleState.BeginFeedback()) return;
             currentView = null;
             ReminderText.Inlines.Clear();
             ReminderText.Inlines.Add(new Run(text));
@@ -68,6 +82,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         }, System.Windows.Threading.DispatcherPriority.Normal, cancellationToken);
 
         await Task.Delay(TimeSpan.FromSeconds(2.4), cancellationToken);
+        RestoreIdle();
     }
 
     public void RestoreIdle()
@@ -78,6 +93,9 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             return;
         }
 
+        if (bubbleState.State == PetBubbleState.Reminder) return;
+        interactionBubbleCancellation?.Cancel();
+        bubbleState.RestoreIdle();
         currentView = null;
         ShowIdleSkin();
         Bubble.Visibility = Visibility.Collapsed;
@@ -147,6 +165,8 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 
     private void ShowCore(PetReminderView view)
     {
+        interactionBubbleCancellation?.Cancel();
+        bubbleState.BeginReminder();
         currentView = view;
         ShowReminderSkin();
         Bubble.Visibility = Visibility.Visible;
@@ -203,13 +223,67 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 
     private void PetHitArea_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ButtonState == MouseButtonState.Pressed)
-        {
-            DragMove();
-            e.Handled = true;
-        }
+        if (e.ButtonState != MouseButtonState.Pressed || e.ClickCount > 1) return;
+        gestureTracker.Press(e.GetPosition(this));
+        dragStarted = false;
+        PetHitArea.CaptureMouse();
+        e.Handled = true;
     }
 
+    private void PetHitArea_OnMouseMove(object sender, MouseEventArgs e)
+    {
+        if (gestureTracker.Move(e.GetPosition(this)) != PetGestureResult.DragStarted) return;
+        dragStarted = true;
+        PetHitArea.ReleaseMouseCapture();
+        DragMove();
+    }
+
+    private void PetHitArea_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        var result = gestureTracker.Release(e.GetPosition(this));
+        PetHitArea.ReleaseMouseCapture();
+        if (!dragStarted && result == PetGestureResult.Click && e.ClickCount == 1)
+            InteractionRequested?.Invoke(this, EventArgs.Empty);
+        dragStarted = false;
+        ClampToWorkArea();
+        e.Handled = true;
+    }
+
+    private void PetHitArea_OnLostMouseCapture(object sender, MouseEventArgs e) => gestureTracker.Cancel();
+
+    public async Task ShowInteractionAsync(string text, TimeSpan duration, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        if (duration <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(duration));
+        cancellationToken.ThrowIfCancellationRequested();
+        var tokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var accepted = false;
+        await Dispatcher.InvokeAsync(() =>
+        {
+            if (!bubbleState.TryBeginInteraction()) return;
+            accepted = true;
+            interactionBubbleCancellation?.Cancel();
+            interactionBubbleCancellation = tokenSource;
+            currentView = null;
+            ReminderText.Inlines.Clear();
+            ReminderText.Inlines.Add(new Run(text));
+            Bubble.Visibility = Visibility.Visible;
+            BubbleArrow.Visibility = Visibility.Visible;
+            if (!IsVisible) Show();
+            ClampToWorkArea();
+        }, System.Windows.Threading.DispatcherPriority.Normal, cancellationToken);
+        if (!accepted) { tokenSource.Dispose(); return; }
+        try
+        {
+            await Task.Delay(duration, tokenSource.Token);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (ReferenceEquals(interactionBubbleCancellation, tokenSource) && bubbleState.State == PetBubbleState.Interaction)
+                    RestoreIdle();
+            });
+        }
+        finally { tokenSource.Dispose(); }
+    }
     private void ClampToWorkArea()
     {
         var workArea = SystemParameters.WorkArea;
@@ -219,6 +293,8 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 
     protected override void OnClosed(EventArgs e)
     {
+        interactionBubbleCancellation?.Cancel();
+        gestureTracker.Cancel();
         PetImage.Source = null;
         base.OnClosed(e);
     }
