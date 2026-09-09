@@ -70,6 +70,39 @@ public sealed class SkinTask1Tests
         Assert.Equal(280, size.Height, 2);
     }
 
+    [Fact]
+    public void RejectsFakePngSignature()
+    {
+        var directory = Directory.CreateTempSubdirectory("ikuyo-skin-task1-").FullName;
+        try
+        {
+            WriteManifest(directory, 406, 996);
+            File.WriteAllText(Path.Combine(directory, "idle.png"), "not-a-png");
+            File.WriteAllText(Path.Combine(directory, "remind.png"), "not-a-png");
+            var result = new SkinPackageValidator().Validate(directory);
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, error => error.Contains("not a PNG", StringComparison.Ordinal));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
+    public void BootstrapperRejectsPathEscapeAndReturnsDiagnosticFallback()
+    {
+        var root = Directory.CreateTempSubdirectory("ikuyo-skin-root-").FullName;
+        try
+        {
+            var bootstrapper = new SkinBootstrapper(new SkinPackageValidator(), root);
+            var traversal = bootstrapper.ResolveWithDiagnostics(new SkinSelection("..", "1.0.0"));
+            Assert.True(traversal.UsesPlaceholder);
+            Assert.False(string.IsNullOrWhiteSpace(traversal.Error));
+
+            var missing = bootstrapper.ResolveWithDiagnostics(new SkinSelection("missing", "1.0.0"));
+            Assert.True(missing.UsesPlaceholder);
+            Assert.Contains("占位符", missing.Error, StringComparison.Ordinal);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
     private static void WriteManifest(string directory, int width, int height) =>
         File.WriteAllText(Path.Combine(directory, "manifest.json"), $$"""
             {"id":"task1","name":"测试","version":"1.0.0","author":"test","license":"test","canvasWidth":{{width}},"canvasHeight":{{height}},"fps":1}

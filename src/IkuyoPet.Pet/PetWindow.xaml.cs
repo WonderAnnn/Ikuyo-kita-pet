@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Documents;
 using IkuyoPet.Core.Reminders;
+using IkuyoPet.Pet.Skins;
 
 namespace IkuyoPet.Pet;
 
@@ -55,7 +56,17 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     {
         ArgumentNullException.ThrowIfNull(assets);
         skinAssets = assets;
-        ShowIdleSkin();
+        try
+        {
+            ShowIdleSkin();
+        }
+        catch (Exception exception) when (exception is IOException or NotSupportedException or InvalidOperationException or ArgumentException)
+        {
+            skinAssets = null;
+            PetImage.Source = null;
+            PetImage.Visibility = Visibility.Collapsed;
+            PetPlaceholder.Visibility = Visibility.Visible;
+        }
     }
 
     public void ShowIdleSkin()
