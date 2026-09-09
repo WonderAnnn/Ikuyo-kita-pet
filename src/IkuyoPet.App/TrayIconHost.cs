@@ -47,6 +47,12 @@ public sealed class TrayIconHost : IDisposable
     public bool IsPetVisible => petWindow.IsVisible;
     public DateTimeOffset? PausedUntil { get; private set; }
 
+    public void ShowNotification(string title, string message)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        taskbarIcon.ShowNotification(title, message, H.NotifyIcon.Core.NotificationIcon.Info);
+    }
+
     public void Invoke(TrayCommand command)
     {
         ObjectDisposedException.ThrowIf(disposed, this);

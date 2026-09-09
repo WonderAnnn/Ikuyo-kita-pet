@@ -67,11 +67,15 @@ public partial class App : Application
                 repository,
                 new ReminderStateMachine(3),
                 TimeProvider.System);
-            notificationSink = new WindowsAppNotificationSink(new NotificationActionHandler(
-                actionCoordinator,
-                cancellationToken => viewModel.RefreshAsync(
-                    DateOnly.FromDateTime(viewModel.SelectedDate),
-                    cancellationToken)));
+            notificationSink = new WindowsAppNotificationSink(
+                new NotificationActionHandler(
+                    actionCoordinator,
+                    cancellationToken => viewModel.RefreshAsync(
+                        DateOnly.FromDateTime(viewModel.SelectedDate),
+                        cancellationToken)),
+                request => trayIconHost?.ShowNotification(
+                    request.Title,
+                    $"{request.Message}{Environment.NewLine}{Environment.NewLine}请打开 Ikuyo Pet 处理。"));
             var notificationPresenter = new WindowsNotificationPresenter(notificationSink);
             var petPresenter = new PetReminderPresenter(petWindow);
             var router = new ReminderPresentationRouter(petPresenter, notificationPresenter);
@@ -147,7 +151,13 @@ public partial class App : Application
         catch (Exception exception)
         {
             Debug.WriteLine($"Ikuyo Pet startup failed: {exception}");
-            MessageBox.Show(
+            var errorPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "IkuyoPet",
+                "startup-error.log");
+            Directory.CreateDirectory(Path.GetDirectoryName(errorPath)!);
+            File.AppendAllText(errorPath, $"[{DateTimeOffset.Now:O}] App startup: {exception}{Environment.NewLine}");
+            System.Windows.MessageBox.Show(
                 $"Ikuyo Pet 启动失败：{exception.Message}",
                 "Ikuyo Pet",
                 MessageBoxButton.OK,

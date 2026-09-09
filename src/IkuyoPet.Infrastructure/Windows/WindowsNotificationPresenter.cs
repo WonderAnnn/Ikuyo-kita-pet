@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using IkuyoPet.Core.Presentation;
 using IkuyoPet.Core.Reminders;
 using Microsoft.Windows.AppNotifications;
@@ -42,22 +44,48 @@ public interface INotificationActionHandler
 
 public sealed class WindowsAppNotificationSink : INotificationSink, IDisposable
 {
-    private readonly AppNotificationManager manager;
+    private readonly AppNotificationManager? manager;
     private readonly INotificationActionHandler actionHandler;
+    private readonly Action<NotificationRequest>? unavailableFallback;
     private readonly object registrationGate = new();
     private bool registered;
 
-    public WindowsAppNotificationSink(INotificationActionHandler actionHandler)
+    public WindowsAppNotificationSink(
+        INotificationActionHandler actionHandler,
+        Action<NotificationRequest>? unavailableFallback = null)
     {
         this.actionHandler = actionHandler ?? throw new ArgumentNullException(nameof(actionHandler));
-        manager = AppNotificationManager.Default;
-        manager.NotificationInvoked += OnNotificationInvoked;
+        this.unavailableFallback = unavailableFallback;
+
+        try
+        {
+            if (AppNotificationManager.IsSupported())
+            {
+                manager = AppNotificationManager.Default;
+                manager.NotificationInvoked += OnNotificationInvoked;
+            }
+        }
+        catch (COMException exception)
+        {
+            // Some Windows installations do not have the Windows App SDK
+            // notification class registered. Notifications must not prevent
+            // the tray app and desktop pet from starting.
+            Debug.WriteLine($"Windows App SDK notifications unavailable: {exception.Message}");
+            manager = null;
+        }
     }
 
     public Task ShowAsync(NotificationRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (manager is null)
+        {
+            unavailableFallback?.Invoke(request);
+            return Task.CompletedTask;
+        }
+
         EnsureRegistered();
 
         var builder = new AppNotificationBuilder()
@@ -81,6 +109,8 @@ public sealed class WindowsAppNotificationSink : INotificationSink, IDisposable
 
     public void Dispose()
     {
+        if (manager is null) return;
+
         manager.NotificationInvoked -= OnNotificationInvoked;
         if (registered)
         {
@@ -96,7 +126,7 @@ public sealed class WindowsAppNotificationSink : INotificationSink, IDisposable
         lock (registrationGate)
         {
             if (registered) return;
-            if (!AppNotificationManager.IsSupported())
+            if (manager is null || !AppNotificationManager.IsSupported())
             {
                 throw new PlatformNotSupportedException("Windows App SDK app notifications are not supported.");
             }

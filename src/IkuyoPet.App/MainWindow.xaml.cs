@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using IkuyoPet.Core.Dashboard;
@@ -15,10 +16,28 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (DataContext is MainWindowViewModel viewModel)
+        try
         {
-            await viewModel.LoadTodayAsync(DateOnly.FromDateTime(DateTime.Today));
-            await viewModel.LoadSettingsAsync();
+            if (DataContext is MainWindowViewModel viewModel)
+            {
+                await viewModel.LoadTodayAsync(DateOnly.FromDateTime(DateTime.Today));
+                await viewModel.LoadSettingsAsync();
+            }
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine($"Ikuyo Pet dashboard load failed: {exception}");
+            var errorPath = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "IkuyoPet",
+                "startup-error.log");
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(errorPath)!);
+            System.IO.File.AppendAllText(errorPath, $"[{DateTimeOffset.Now:O}] Dashboard load: {exception}{Environment.NewLine}");
+            MessageBox.Show(
+                $"今日数据加载失败，主界面仍可使用：{exception.Message}",
+                "Ikuyo Pet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
     }
 
