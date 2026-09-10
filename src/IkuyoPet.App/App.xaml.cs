@@ -103,9 +103,13 @@ public partial class App : Application
                 {
                     await reminderLoop.ConsumeActiveWorkAsync(delta, cancellationToken);
                     await window.Dispatcher.InvokeAsync(
-                        () => viewModel.RefreshAsync(
-                            DateOnly.FromDateTime(viewModel.SelectedDate),
-                            cancellationToken),
+                        () =>
+                        {
+                            viewModel.ApplyActiveWorkDelta(delta);
+                            return viewModel.RefreshAsync(
+                                DateOnly.FromDateTime(viewModel.SelectedDate),
+                                cancellationToken);
+                        },
                         System.Windows.Threading.DispatcherPriority.Background).Task.Unwrap();
                 });
 

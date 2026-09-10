@@ -20,9 +20,9 @@
                             <Border Margin="0,0,0,8" Padding="14" CornerRadius="12" Background="White">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0"><TextBlock FontSize="11" Foreground="#FF9AA6B8" Text="{Binding ScheduledAt, StringFormat=yyyy-MM-dd}"/><TextBlock Margin="0,2,0,0" FontWeight="SemiBold" Foreground="#FF263247" Text="{Binding ScheduledAt, StringFormat=HH:mm}"/></StackPanel>
+                                    <StackPanel Grid.Column="0"><TextBlock FontSize="11" Foreground="#FF9AA6B8" Text="{Binding LocalScheduledAt, StringFormat=yyyy-MM-dd}"/><TextBlock Margin="0,2,0,0" FontWeight="SemiBold" Foreground="#FF263247" Text="{Binding LocalScheduledAt, StringFormat=HH:mm}"/></StackPanel>
                                     <StackPanel Grid.Column="1"><TextBlock FontWeight="SemiBold" Foreground="#FF263247" Text="{Binding KindText}"/><TextBlock Margin="0,4,0,0" Foreground="#FF68778D" Text="{Binding ChannelText}"/></StackPanel>
-                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right"><TextBlock FontWeight="SemiBold" Foreground="#FF9B5473" Text="{Binding OutcomeText}"/><TextBlock Margin="0,4,0,0" Foreground="#FF9AA6B8" Text="{Binding ActionAt, StringFormat={}{0:HH:mm}}"/><TextBlock Foreground="#FF9AA6B8" Text="{Binding RetryIndex, StringFormat=重提 {0} 次}"/></StackPanel>
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right"><TextBlock FontWeight="SemiBold" Foreground="#FF9B5473" Text="{Binding OutcomeText}"/><TextBlock Margin="0,4,0,0" Foreground="#FF9AA6B8" Text="{Binding LocalActionAt, StringFormat={}{0:HH:mm}}"/><TextBlock Foreground="#FF9AA6B8" Text="{Binding RetryIndex, StringFormat=重提 {0} 次}"/></StackPanel>
                                 </Grid>
                             </Border>
                         </DataTemplate>

@@ -1,5 +1,6 @@
 using System.IO;
 using IkuyoPet.Core.Dashboard;
+using IkuyoPet.Core.WorkTracking;
 using IkuyoPet.Infrastructure.Storage;
 using Xunit;
 
@@ -27,6 +28,37 @@ public sealed class MainWindowViewModelSettingsTests
         await restarted.LoadSettingsAsync(TestContext.Current.CancellationToken);
 
         Assert.True(restarted.PetEnabled);
+    }
+
+    [Fact]
+    public async Task ActiveWorkDeltaAppearsInWorkDurationText()
+    {
+        var viewModel = new IkuyoPet.App.MainWindowViewModel(new EmptyDashboard());
+        var day = DateOnly.FromDateTime(DateTime.Now);
+        await viewModel.RefreshAsync(day, TestContext.Current.CancellationToken);
+
+        viewModel.ApplyActiveWorkDelta(
+            new ActiveWorkDelta(90, "WINWORD", DateTimeOffset.UtcNow));
+
+        Assert.Equal("0小时1分钟", viewModel.WorkDurationText);
+    }
+
+    [Fact]
+    public async Task LoadSettingsAddsMicrosoftWordProcessToDefaults()
+    {
+        using var database = new TemporaryDatabase();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        var viewModel = new IkuyoPet.App.MainWindowViewModel(
+            new EmptyDashboard(),
+            repository: repository);
+
+        await viewModel.LoadSettingsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(
+            viewModel.TrackedApplications,
+            application => application.ProcessName == "WINWORD" &&
+                           application.DisplayName == "Microsoft Word" &&
+                           application.Enabled);
     }
 
     private sealed class EmptyDashboard : IDashboardQueryService

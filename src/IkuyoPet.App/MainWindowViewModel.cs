@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using IkuyoPet.Core.Dashboard;
@@ -30,6 +29,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string settingsStatus = string.Empty;
     private string currentSkinText = "默认占位皮肤";
     private string ruleSummaryText = "有效工作 40–50 分钟后提醒，建议离屏轻缓活动 5 分钟。";
+    private DateOnly? liveWorkDay;
+    private string? liveWorkProcessName;
+    private int liveWorkSeconds;
+
+    private static readonly IReadOnlyList<TrackedApplication> DefaultTrackedApplications =
+    [
+        new("pycharm64", "PyCharm", true),
+        new("WINWORD", "Microsoft Word", true),
+    ];
 
     public MainWindowViewModel(
         IDashboardQueryService dashboard,
@@ -174,6 +182,36 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         trackedApplications.Any(application =>
             application.Enabled && string.Equals(application.ProcessName, processName, StringComparison.OrdinalIgnoreCase));
 
+    public void ApplyActiveWorkDelta(ActiveWorkDelta delta)
+    {
+        ArgumentNullException.ThrowIfNull(delta);
+        var localDay = DateOnly.FromDateTime(delta.ObservedAt.ToLocalTime().DateTime);
+        if (liveWorkDay != localDay)
+        {
+            liveWorkDay = localDay;
+            liveWorkProcessName = null;
+            liveWorkSeconds = 0;
+        }
+
+        if (delta.ActiveSeconds <= 0 || string.IsNullOrWhiteSpace(delta.ProcessName))
+        {
+            liveWorkProcessName = null;
+            liveWorkSeconds = 0;
+            OnPropertyChanged(nameof(WorkDurationText));
+            return;
+        }
+
+        if (liveWorkProcessName is not null &&
+            !string.Equals(liveWorkProcessName, delta.ProcessName, StringComparison.OrdinalIgnoreCase))
+        {
+            liveWorkSeconds = 0;
+        }
+
+        liveWorkProcessName = delta.ProcessName;
+        liveWorkSeconds = checked(liveWorkSeconds + delta.ActiveSeconds);
+        OnPropertyChanged(nameof(WorkDurationText));
+    }
+
     public async Task LoadSettingsAsync(CancellationToken cancellationToken = default)
     {
         if (appSettingsStore is not null)
@@ -197,14 +235,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (repository is not null)
         {
             var applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
-            if (applications.Count == 0)
+            foreach (var defaultApplication in DefaultTrackedApplications)
             {
+                if (applications.Any(application =>
+                    string.Equals(
+                        application.ProcessName,
+                        defaultApplication.ProcessName,
+                        StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
                 await repository.UpsertTrackedApplicationAsync(
-                    new TrackedApplication("pycharm64", "PyCharm", true),
+                    defaultApplication,
                     cancellationToken);
-                applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
             }
 
+            applications = await repository.ReadTrackedApplicationsAsync(cancellationToken);
             TrackedApplications = applications;
             var rules = await repository.ReadReminderRulesAsync(cancellationToken);
             var activityRule = rules.FirstOrDefault(rule => rule.Enabled && rule.Kind == "activity");
@@ -285,12 +332,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 .FirstOrDefault();
             return next is null
                 ? "今天还没有下一次提醒，先按自己的节奏来吧～"
-                : $"{next.ScheduledAt:HH:mm} · {next.Kind}，准备好就出发吧～";
+                : $"{next.ScheduledAt.ToLocalTime():HH:mm} · {next.Kind}，准备好就出发吧～";
         }
     }
     public string HydrationText => $"{TodaySnapshot?.HydrationCount ?? 0} 次";
     public string ActivityText => $"{TodaySnapshot?.ActivityCount ?? 0} 次";
-    public string WorkDurationText => (TodaySnapshot?.WorkDuration ?? TimeSpan.Zero).ToString(@"h\小时m\分钟", CultureInfo.InvariantCulture);
+    public string WorkDurationText
+    {
+        get
+        {
+            var persisted = TodaySnapshot?.WorkDuration ?? TimeSpan.Zero;
+            var live = TodaySnapshot is not null && liveWorkDay == TodaySnapshot.Day
+                ? TimeSpan.FromSeconds(liveWorkSeconds)
+                : TimeSpan.Zero;
+            var duration = persisted + live;
+            return $"{(int)duration.TotalHours}小时{duration.Minutes}分钟";
+        }
+    }
 
     public void Navigate(MainWindowPage page)
     {

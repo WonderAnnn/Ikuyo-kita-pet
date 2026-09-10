@@ -201,6 +201,22 @@ public sealed class DashboardQueryServiceTests
         Assert.Equal(TimeSpan.FromHours(expectedHours), snapshot.WorkTime);
     }
 
+    [Fact]
+    public void TimelineItemExposesLocalDisplayTimes()
+    {
+        var utc = new DateTimeOffset(2026, 9, 10, 9, 4, 0, TimeSpan.Zero);
+        var item = new TimelineItem(
+            utc,
+            "activity",
+            "pet",
+            ReminderOutcome.Completed,
+            utc,
+            0);
+
+        Assert.Equal(utc.ToLocalTime(), item.LocalScheduledAt);
+        Assert.Equal(utc.ToLocalTime(), item.LocalActionAt);
+    }
+
     private static ReminderEvent CreateEvent(
         Guid ruleId,
         DateTimeOffset scheduledAt,

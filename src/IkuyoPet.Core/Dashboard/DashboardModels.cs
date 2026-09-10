@@ -10,6 +10,10 @@ public sealed record TimelineItem(
     DateTimeOffset? ActionAt,
     int RetryIndex)
 {
+    public DateTimeOffset LocalScheduledAt => ScheduledAt.ToLocalTime();
+
+    public DateTimeOffset? LocalActionAt => ActionAt?.ToLocalTime();
+
     public string KindText => Kind switch
     {
         "water" or "hydration" => "喝水",

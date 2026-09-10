@@ -24,6 +24,15 @@ public sealed class LogFilterStyleContractTests
     }
 
     [Fact]
+    public void LogDateTextBoxCentersItsTextVertically()
+    {
+        var styles = Read("src/IkuyoPet.App/Themes/LogFilterStyles.xaml");
+
+        Assert.Contains("VerticalContentAlignment=\"Center\"", styles);
+        Assert.Contains("FontSize=\"14\"", styles);
+    }
+
+    [Fact]
     public void LogViewKeepsBindingsAndFilterOptions()
     {
         var view = Read("src/IkuyoPet.App/Views/LogView.xaml");
