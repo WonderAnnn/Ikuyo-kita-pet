@@ -15,6 +15,22 @@ public sealed class DashboardQueryService(
         var reminderEvents = await repository.ReadReminderEventsAsync(day, cancellationToken);
         var workSessions = await repository.ReadWorkSessionsAsync(day, cancellationToken);
         var rules = await repository.ReadReminderRulesAsync(cancellationToken);
+        var activeWorkRule = rules.FirstOrDefault(rule =>
+            rule.Enabled &&
+            (string.Equals(rule.Kind, "activity", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(rule.Kind, "move", StringComparison.OrdinalIgnoreCase)));
+        ReminderRuntimeState? activeWorkRuntime = null;
+        if (activeWorkRule is not null)
+        {
+            try
+            {
+                activeWorkRuntime = await repository.ReadReminderRuntimeStateAsync(activeWorkRule.Id, cancellationToken);
+            }
+            catch (NotSupportedException)
+            {
+                // Legacy repositories may not persist runtime state.
+            }
+        }
         var kindsByRuleId = rules
             .GroupBy(rule => rule.Id)
             .ToDictionary(group => group.Key, group => group.First().Kind);
@@ -50,6 +66,8 @@ public sealed class DashboardQueryService(
                 kindsByRuleId,
                 "activity",
                 "move"),
+            ActiveWorkRule = activeWorkRule,
+            ActiveWorkRuntime = activeWorkRuntime,
         };
     }
 

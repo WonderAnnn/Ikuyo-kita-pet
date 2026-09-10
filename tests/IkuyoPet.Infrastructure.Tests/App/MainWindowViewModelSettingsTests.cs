@@ -1,5 +1,6 @@
 using System.IO;
 using IkuyoPet.Core.Dashboard;
+using IkuyoPet.Core.Reminders;
 using IkuyoPet.Core.WorkTracking;
 using IkuyoPet.Infrastructure.Storage;
 using Xunit;
@@ -44,6 +45,27 @@ public sealed class MainWindowViewModelSettingsTests
     }
 
     [Fact]
+    public async Task NextReminderTextShowsEstimatedBreakFromActiveWorkRuntime()
+    {
+        var rule = ReminderRule.CreateDefaultActiveWork(Guid.NewGuid());
+        var runtime = new ReminderRuntimeState(
+            rule.Id,
+            Guid.NewGuid(),
+            targetActiveSeconds: 3_000,
+            accumulatedActiveSeconds: 1_200,
+            ReminderRuntimeStatus.Accumulating,
+            attempt: 0,
+            retryDueAt: null,
+            updatedAt: DateTimeOffset.UtcNow);
+        var viewModel = new IkuyoPet.App.MainWindowViewModel(
+            new ProgressDashboard(rule, runtime));
+
+        await viewModel.RefreshAsync(DateOnly.FromDateTime(DateTime.Today), TestContext.Current.CancellationToken);
+
+        Assert.Contains("还需约 30 分钟", viewModel.NextReminderText);
+    }
+
+    [Fact]
     public async Task LoadSettingsAddsMicrosoftWordProcessToDefaults()
     {
         using var database = new TemporaryDatabase();
@@ -59,6 +81,19 @@ public sealed class MainWindowViewModelSettingsTests
             application => application.ProcessName == "WINWORD" &&
                            application.DisplayName == "Microsoft Word" &&
                            application.Enabled);
+    }
+
+    private sealed class ProgressDashboard(ReminderRule rule, ReminderRuntimeState runtime) : IDashboardQueryService
+    {
+        public Task<DashboardSnapshot> GetAsync(DateOnly day, CancellationToken cancellationToken)
+        {
+            var snapshot = new DashboardSnapshot(day, [], 0, 0, 0, 0, TimeSpan.Zero)
+            {
+                ActiveWorkRule = rule,
+                ActiveWorkRuntime = runtime,
+            };
+            return Task.FromResult(snapshot);
+        }
     }
 
     private sealed class EmptyDashboard : IDashboardQueryService

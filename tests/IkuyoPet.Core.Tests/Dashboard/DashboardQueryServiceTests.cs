@@ -49,6 +49,30 @@ public sealed class DashboardQueryServiceTests
     }
 
     [Fact]
+    public async Task ExposesActiveWorkRuntimeForDashboard()
+    {
+        var rule = ReminderRule.CreateDefaultActiveWork(Guid.NewGuid());
+        var runtime = new ReminderRuntimeState(
+            rule.Id,
+            Guid.NewGuid(),
+            3_000,
+            1_200,
+            ReminderRuntimeStatus.Accumulating,
+            0,
+            null,
+            DateTimeOffset.UtcNow);
+        var service = new DashboardQueryService(
+            new StubEventRepository(rules: [rule], runtimeState: runtime));
+
+        var snapshot = await service.GetAsync(
+            new DateOnly(2026, 9, 10),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(rule, snapshot.ActiveWorkRule);
+        Assert.Equal(runtime, snapshot.ActiveWorkRuntime);
+    }
+
+    [Fact]
     public async Task UsesUnknownKindWhenEventHasNoMatchingRule()
     {
         var day = new DateOnly(2026, 9, 7);
@@ -286,7 +310,8 @@ public sealed class DashboardQueryServiceTests
     private sealed class StubEventRepository(
         IReadOnlyList<ReminderRule>? rules = null,
         IReadOnlyList<ReminderEvent>? reminderEvents = null,
-        IReadOnlyList<WorkSession>? workSessions = null) : IEventRepository
+        IReadOnlyList<WorkSession>? workSessions = null,
+        ReminderRuntimeState? runtimeState = null) : IEventRepository
     {
         public DateOnly? ReminderDayRead { get; private set; }
 
@@ -321,6 +346,9 @@ public sealed class DashboardQueryServiceTests
             Task.FromResult(rules ?? (IReadOnlyList<ReminderRule>)[]);
 
         public Task UpsertReminderRuleAsync(ReminderRule rule, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<ReminderRuntimeState?> ReadReminderRuntimeStateAsync(Guid ruleId, CancellationToken cancellationToken)
+            => Task.FromResult(runtimeState?.RuleId == ruleId ? runtimeState : null);
 
         public Task<IReadOnlyList<WorkSession>> ReadWorkSessionsAsync(DateOnly day, CancellationToken cancellationToken)
         {

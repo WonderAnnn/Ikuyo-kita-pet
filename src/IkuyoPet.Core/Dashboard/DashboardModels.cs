@@ -55,6 +55,10 @@ public sealed record DashboardSnapshot(
     public int ActivityCount { get; init; }
 
     public TimeSpan WorkDuration => WorkTime;
+
+    public ReminderRule? ActiveWorkRule { get; init; }
+
+    public ReminderRuntimeState? ActiveWorkRuntime { get; init; }
 }
 
 public enum MainWindowPage

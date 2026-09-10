@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using IkuyoPet.Core.Dashboard;
+using IkuyoPet.Core.Reminders;
 using IkuyoPet.Core.Storage;
 using IkuyoPet.Core.WorkTracking;
 using IkuyoPet.Infrastructure.Storage;
@@ -330,9 +331,37 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 .Where(item => item.Outcome == IkuyoPet.Core.Reminders.ReminderOutcome.None)
                 .OrderBy(item => item.ScheduledAt)
                 .FirstOrDefault();
-            return next is null
-                ? "今天还没有下一次提醒，先按自己的节奏来吧～"
-                : $"{next.ScheduledAt.ToLocalTime():HH:mm} · {next.Kind}，准备好就出发吧～";
+            if (next is not null)
+            {
+                return $"{next.ScheduledAt.ToLocalTime():HH:mm} · {next.Kind}，准备好就出发吧～";
+            }
+
+            var rule = TodaySnapshot?.ActiveWorkRule;
+            var runtime = TodaySnapshot?.ActiveWorkRuntime;
+            if (runtime?.Status == ReminderRuntimeStatus.Accumulating)
+            {
+                var remainingSeconds = Math.Max(0, runtime.TargetActiveSeconds - runtime.AccumulatedActiveSeconds);
+                var remainingMinutes = (int)Math.Ceiling(remainingSeconds / 60d);
+                var estimate = DateTimeOffset.Now.AddSeconds(remainingSeconds);
+                return $"预计 {estimate:HH:mm} 左右休息（还需约 {remainingMinutes} 分钟有效工作）";
+            }
+            if (runtime?.Status == ReminderRuntimeStatus.Due)
+            {
+                return "现在可以休息啦～";
+            }
+            if (runtime?.Status == ReminderRuntimeStatus.WaitingRetry && runtime.RetryDueAt is { } retryDueAt)
+            {
+                return $"已搁置，预计 {retryDueAt.ToLocalTime():HH:mm} 再提醒";
+            }
+            if (runtime?.Status == ReminderRuntimeStatus.Unanswered)
+            {
+                return "本轮提醒已结束，下一轮有效工作会重新计时";
+            }
+            if (rule is not null)
+            {
+                return $"保持前台有效工作约 {rule.IntervalMinMinutes}–{rule.IntervalMaxMinutes} 分钟后休息";
+            }
+            return "今天还没有下一次提醒，先按自己的节奏来吧～";
         }
     }
     public string HydrationText => $"{TodaySnapshot?.HydrationCount ?? 0} 次";
