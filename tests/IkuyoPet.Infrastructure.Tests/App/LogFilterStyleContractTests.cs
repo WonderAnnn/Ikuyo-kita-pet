@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Xml.Linq;
 using Xunit;
 
 namespace IkuyoPet.Infrastructure.Tests.App;
@@ -61,6 +62,30 @@ public sealed class LogFilterStyleContractTests
         Assert.Contains(@"Content=""日""", view);
         Assert.Contains(@"Content=""周""", view);
         Assert.Contains(@"Content=""月""", view);
+    }
+
+    [Fact]
+    public void LogViewPlacesStatisticsAndTimelineOnSeparateRows()
+    {
+        var document = XDocument.Parse(Read("src/IkuyoPet.App/Views/LogView.xaml"));
+        XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var root = document.Root!.Element(wpf + "Grid");
+        Assert.NotNull(root);
+
+        var statisticsPanel = root!.Elements(wpf + "Border")
+            .Single(element => element.Descendants(wpf + "TextBlock")
+                .Any(text => (string?)text.Attribute("Text") == "工作统计"));
+        var timelinePanel = root.Elements(wpf + "Grid")
+            .Single(element => element.Descendants(wpf + "ItemsControl")
+                .Any(items => (string?)items.Attribute("ItemsSource") == "{Binding TimelineItems}"));
+
+        var statisticsRow = (string?)statisticsPanel.Attribute("Grid.Row");
+        var timelineRow = (string?)timelinePanel.Attribute("Grid.Row");
+        Assert.NotEqual(statisticsRow, timelineRow);
+
+        var rowCount = root.Element(wpf + "Grid.RowDefinitions")?.Elements(wpf + "RowDefinition").Count() ?? 0;
+        Assert.True(int.TryParse(timelineRow, out var row));
+        Assert.InRange(row, 0, rowCount - 1);
     }
 
     [Fact]

@@ -39,7 +39,8 @@
                     <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding TopApplicationStats.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                 </TextBlock>
             </Grid>
-        </Border>        <Grid Grid.Row="2">
+        </Border>
+        <Grid Grid.Row="3">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding TimelineItems}">
                     <ItemsControl.ItemTemplate>
