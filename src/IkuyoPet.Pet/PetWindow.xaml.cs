@@ -314,7 +314,12 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             if (!IsVisible) Show();
             ClampToWorkArea();
         }, System.Windows.Threading.DispatcherPriority.Normal, cancellationToken);
-        if (!accepted) { tokenSource.Dispose(); return; }
+        if (!accepted)
+        {
+            interactionThrottle.Reset();
+            tokenSource.Dispose();
+            return;
+        }
         try
         {
             await Task.Delay(duration, tokenSource.Token);
