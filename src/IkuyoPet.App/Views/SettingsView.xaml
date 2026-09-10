@@ -39,6 +39,7 @@
                 </StackPanel>
             </Border>
             <TextBlock Margin="0,12,0,4" Foreground="#FF68778D" Text="{Binding SettingsStatus}" TextWrapping="Wrap"/>
+            <TextBlock Margin="0,4,0,12" Foreground="#FF9AA6B8" Text="{Binding VersionText}"/>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

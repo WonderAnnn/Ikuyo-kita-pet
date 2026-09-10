@@ -74,19 +74,56 @@ public sealed class MainWindowViewModelSettingsTests
             new EmptyDashboard(),
             workStatisticsQuery: statistics);
 
+        var selectedDate = new DateOnly(2026, 9, 10);
         await viewModel.RefreshAsync(
-            DateOnly.FromDateTime(DateTime.Today),
+            selectedDate,
             TestContext.Current.CancellationToken);
 
         Assert.Equal("1小时30分钟", viewModel.WorkStatisticsTotalText);
+        Assert.Equal("北京时间 2026年9月10日", viewModel.WorkStatisticsRangeText);
         Assert.Equal(["Word", "PyCharm"], viewModel.TopApplicationStats.Select(item => item.DisplayName));
 
         viewModel.StatisticsPeriodIndex = 1;
-        await viewModel.RefreshAsync(
-            DateOnly.FromDateTime(DateTime.Today),
-            TestContext.Current.CancellationToken);
+        await viewModel.RefreshAsync(selectedDate, TestContext.Current.CancellationToken);
 
         Assert.Equal(WorkStatisticsPeriod.Week, statistics.LastPeriod);
+        Assert.Equal("北京时间 2026年9月4日–2026年9月10日", viewModel.WorkStatisticsRangeText);
+
+        viewModel.StatisticsPeriodIndex = 2;
+        await viewModel.RefreshAsync(selectedDate, TestContext.Current.CancellationToken);
+
+        Assert.Equal("北京时间 2026年8月12日–2026年9月10日", viewModel.WorkStatisticsRangeText);
+    }
+
+    [Fact]
+    public async Task RefreshLoadsAllTimeWorkSeparatelyFromToday()
+    {
+        using var database = new TemporaryDatabase();
+        var repository = new SqliteEventRepository(database.ConnectionString);
+        await repository.UpsertTrackedApplicationAsync(
+            new TrackedApplication("WINWORD", "Microsoft Word", true),
+            TestContext.Current.CancellationToken);
+        var now = DateTimeOffset.Now;
+        await repository.AppendWorkSessionAsync(
+            new WorkSession(
+                Guid.NewGuid(),
+                "WINWORD",
+                "Microsoft Word",
+                now.AddMinutes(-5),
+                now,
+                300,
+                "test"),
+            TestContext.Current.CancellationToken);
+
+        var viewModel = new IkuyoPet.App.MainWindowViewModel(
+            new EmptyDashboard(),
+            repository: repository);
+        await viewModel.RefreshAsync(
+            DateOnly.FromDateTime(now.LocalDateTime),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("0小时5分钟", viewModel.TotalWorkDurationText);
+        Assert.Equal("0小时0分钟", viewModel.TodayWorkDurationText);
     }
 
     [Fact]
@@ -130,8 +167,15 @@ public sealed class MainWindowViewModelSettingsTests
             CancellationToken cancellationToken)
         {
             LastPeriod = period;
+            var start = period switch
+            {
+                WorkStatisticsPeriod.Day => selectedDate,
+                WorkStatisticsPeriod.Week => selectedDate.AddDays(-6),
+                WorkStatisticsPeriod.Month => selectedDate.AddDays(-29),
+                _ => throw new ArgumentOutOfRangeException(nameof(period)),
+            };
             return Task.FromResult(new WorkStatistics(
-                selectedDate,
+                start,
                 selectedDate.AddDays(1),
                 5_400,
                 [

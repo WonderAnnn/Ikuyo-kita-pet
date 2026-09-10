@@ -21,7 +21,7 @@
                         <ComboBoxItem Content="日"/><ComboBoxItem Content="周"/><ComboBoxItem Content="月"/>
                     </ComboBox>
                     <TextBlock Margin="18,0,0,0" Foreground="#FF68778D" Text="总有效工作" VerticalAlignment="Center"/>
-                    <TextBlock Margin="8,0,0,0" FontWeight="SemiBold" Foreground="#FFC25692" Text="{Binding WorkStatisticsTotalText}" VerticalAlignment="Center"/>
+                    <TextBlock Margin="8,0,0,0" FontWeight="SemiBold" Foreground="#FFC25692" Text="{Binding WorkStatisticsTotalText}" VerticalAlignment="Center"/><TextBlock Margin="10,0,0,0" Foreground="#FF68778D" Text="{Binding WorkStatisticsRangeText}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <ItemsControl Grid.Row="1" Margin="0,14,0,0" ItemsSource="{Binding TopApplicationStats}">
                     <ItemsControl.ItemTemplate>

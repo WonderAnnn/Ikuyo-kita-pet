@@ -97,4 +97,30 @@ public sealed class LogFilterStyleContractTests
         Assert.Contains(@"SelectionBrush=""#FFFFD9E8""", styles);
         Assert.Contains(@"SelectionTextBrush=""#FF263247""", styles);
     }
+    [Fact]
+    public void LogComboBoxUsesTransparentPressedTemplate()
+    {
+        var styles = Read("src/IkuyoPet.App/Themes/LogFilterStyles.xaml");
+
+        Assert.Contains("<ToggleButton.Template>", styles);
+        Assert.Contains("<ControlTemplate TargetType=\"ToggleButton\">", styles);
+        Assert.Contains("Background=\"Transparent\" BorderBrush=\"Transparent\"", styles);
+    }
+
+    [Fact]
+    public void MainAndSettingsViewsExposeDurationAndVersionBindings()
+    {
+        var today = Read("src/IkuyoPet.App/Views/TodayView.xaml");
+        var log = Read("src/IkuyoPet.App/Views/LogView.xaml");
+        var settings = Read("src/IkuyoPet.App/Views/SettingsView.xaml");
+        var app = Read("src/IkuyoPet.App/App.xaml");
+        var project = Read("src/IkuyoPet.App/IkuyoPet.App.csproj");
+
+        Assert.Contains("TotalWorkDurationText", today);
+        Assert.Contains("TodayWorkDurationText", today);
+        Assert.Contains("WorkStatisticsRangeText", log);
+        Assert.Contains("VersionText", settings);
+        Assert.Contains("FocusVisualStyle", app);
+        Assert.Contains("<Version>0.1.1</Version>", project);
+    }
 }

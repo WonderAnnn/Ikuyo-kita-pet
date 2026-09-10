@@ -17,8 +17,8 @@ public sealed class WorkStatisticsQueryServiceTests
             CreateSession("pycharm64", "PyCharm", 240, new DateTime(2026, 9, 8, 9, 0, 0)),
             CreateSession("code", "VS Code", 180, new DateTime(2026, 9, 9, 9, 0, 0)),
             CreateSession("zcode", "ZCode", 120, new DateTime(2026, 9, 10, 9, 0, 0)),
-            CreateSession("edge", "Edge", 60, new DateTime(2026, 9, 11, 9, 0, 0)),
-            CreateSession("qq", "QQ", 30, new DateTime(2026, 9, 12, 9, 0, 0)),
+            CreateSession("edge", "Edge", 60, new DateTime(2026, 9, 10, 10, 0, 0)),
+            CreateSession("qq", "QQ", 30, new DateTime(2026, 9, 3, 9, 0, 0)),
         };
         var service = new WorkStatisticsQueryService(new StubRepository(sessions));
 
@@ -27,9 +27,9 @@ public sealed class WorkStatisticsQueryServiceTests
             WorkStatisticsPeriod.Week,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(new DateOnly(2026, 9, 7), result.StartDate);
-        Assert.Equal(new DateOnly(2026, 9, 14), result.EndDateExclusive);
-        Assert.Equal(TimeSpan.FromSeconds(930), result.TotalWorkTime);
+        Assert.Equal(new DateOnly(2026, 9, 4), result.StartDate);
+        Assert.Equal(new DateOnly(2026, 9, 11), result.EndDateExclusive);
+        Assert.Equal(TimeSpan.FromSeconds(900), result.TotalWorkTime);
         Assert.Equal(5, result.TopApplications.Count);
         Assert.Equal(
             ["Word", "PyCharm", "VS Code", "ZCode", "Edge"],
@@ -58,6 +58,26 @@ public sealed class WorkStatisticsQueryServiceTests
         Assert.Equal(1_800, Assert.Single(result.TopApplications).ActiveSeconds);
     }
 
+    [Fact]
+    public async Task AggregatesTrailingThirtyCalendarDays()
+    {
+        var sessions = new[]
+        {
+            CreateSession("edge", "Edge", 60, new DateTime(2026, 8, 11, 9, 0, 0)),
+            CreateSession("word", "Word", 120, new DateTime(2026, 8, 12, 9, 0, 0)),
+            CreateSession("code", "VS Code", 180, new DateTime(2026, 9, 10, 9, 0, 0)),
+        };
+        var service = new WorkStatisticsQueryService(new StubRepository(sessions));
+
+        var result = await service.GetAsync(
+            new DateOnly(2026, 9, 10),
+            WorkStatisticsPeriod.Month,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(new DateOnly(2026, 8, 12), result.StartDate);
+        Assert.Equal(new DateOnly(2026, 9, 11), result.EndDateExclusive);
+        Assert.Equal(TimeSpan.FromSeconds(300), result.TotalWorkTime);
+    }
     private static WorkSession CreateSession(
         string processName,
         string displayName,

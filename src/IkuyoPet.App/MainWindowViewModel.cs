@@ -37,6 +37,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private int liveWorkSeconds;
     private int statisticsPeriodIndex;
     private WorkStatistics? workStatistics;
+    private int allTimeWorkSeconds;
+    private readonly string versionText = $"版本 {AppVersion.Text}";
 
     private static readonly IReadOnlyList<TrackedApplication> DefaultTrackedApplications =
     [
@@ -92,10 +94,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             workStatistics = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(WorkStatisticsTotalText));
+            OnPropertyChanged(nameof(WorkStatisticsRangeText));
             OnPropertyChanged(nameof(TopApplicationStats));
         }
     }
     public string WorkStatisticsTotalText => FormatDuration(GetStatisticsDuration());
+    public string WorkStatisticsRangeText => FormatStatisticsRange();
+    public string TotalWorkDurationText => FormatDuration(TimeSpan.FromSeconds((long)allTimeWorkSeconds + GetLiveWorkSeconds()));
+    public string TodayWorkDurationText => FormatTodayWorkDuration();
+    public string WorkDurationText => TodayWorkDurationText;
+    public string VersionText => versionText;
     public IReadOnlyList<WorkApplicationUsage> TopApplicationStats => GetStatisticsApplications();
     public IReadOnlyList<TimelineItem> TimelineItems
     {
@@ -230,7 +238,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             liveWorkProcessName = null;
             liveWorkSeconds = 0;
             OnPropertyChanged(nameof(WorkDurationText));
+            OnPropertyChanged(nameof(TodayWorkDurationText));
+            OnPropertyChanged(nameof(TotalWorkDurationText));
             OnPropertyChanged(nameof(WorkStatisticsTotalText));
+            OnPropertyChanged(nameof(WorkStatisticsRangeText));
             OnPropertyChanged(nameof(TopApplicationStats));
             return;
         }
@@ -244,7 +255,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         liveWorkProcessName = delta.ProcessName;
         liveWorkSeconds = checked(liveWorkSeconds + delta.ActiveSeconds);
         OnPropertyChanged(nameof(WorkDurationText));
+        OnPropertyChanged(nameof(TodayWorkDurationText));
+        OnPropertyChanged(nameof(TotalWorkDurationText));
         OnPropertyChanged(nameof(WorkStatisticsTotalText));
+        OnPropertyChanged(nameof(WorkStatisticsRangeText));
         OnPropertyChanged(nameof(TopApplicationStats));
     }
 
@@ -401,19 +415,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
     public string HydrationText => $"{TodaySnapshot?.HydrationCount ?? 0} 次";
     public string ActivityText => $"{TodaySnapshot?.ActivityCount ?? 0} 次";
-    public string WorkDurationText
+    private string FormatTodayWorkDuration()
     {
-        get
-        {
-            var persisted = TodaySnapshot?.WorkDuration ?? TimeSpan.Zero;
-            var live = TodaySnapshot is not null && liveWorkDay == TodaySnapshot.Day
-                ? TimeSpan.FromSeconds(liveWorkSeconds)
-                : TimeSpan.Zero;
-            var duration = persisted + live;
-            return $"{(int)duration.TotalHours}小时{duration.Minutes}分钟";
-        }
+        var persisted = TodaySnapshot?.WorkDuration ?? TimeSpan.Zero;
+        var duration = persisted + TimeSpan.FromSeconds(GetLiveWorkSeconds());
+        return FormatDuration(duration);
     }
 
+    private int GetLiveWorkSeconds() =>
+        TodaySnapshot?.Day == liveWorkDay ? Math.Max(0, liveWorkSeconds) : 0;
     public void Navigate(MainWindowPage page)
     {
         navigation.Navigate(page);
@@ -433,14 +443,44 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 (WorkStatisticsPeriod)statisticsPeriodIndex,
                 cancellationToken);
         }
+        if (repository is not null)
+        {
+            try
+            {
+                var sessions = await repository.ReadAllWorkSessionsAsync(cancellationToken);
+                var total = sessions.Sum(session => (long)Math.Max(0, session.ActiveSeconds));
+                allTimeWorkSeconds = (int)Math.Min(int.MaxValue, total);
+            }
+            catch (NotSupportedException)
+            {
+                // Lightweight test repositories may not provide historical aggregation.
+            }
+        }
         OnPropertyChanged(nameof(NextReminderText));
         OnPropertyChanged(nameof(HydrationText));
         OnPropertyChanged(nameof(ActivityText));
         OnPropertyChanged(nameof(WorkDurationText));
+        OnPropertyChanged(nameof(TodayWorkDurationText));
+        OnPropertyChanged(nameof(TotalWorkDurationText));
         OnPropertyChanged(nameof(WorkStatisticsTotalText));
+        OnPropertyChanged(nameof(WorkStatisticsRangeText));
         OnPropertyChanged(nameof(TopApplicationStats));
     }
 
+    private string FormatStatisticsRange()
+    {
+        var statistics = WorkStatistics;
+        if (statistics is null)
+        {
+            return string.Empty;
+        }
+
+        var start = statistics.StartDate;
+        var end = statistics.EndDateExclusive.AddDays(-1);
+        return start == end
+            ? $"北京时间 {start.Year}年{start.Month}月{start.Day}日"
+            : $"北京时间 {start.Year}年{start.Month}月{start.Day}日–{end.Year}年{end.Month}月{end.Day}日";
+    }
     private TimeSpan GetStatisticsDuration()
     {
         var persisted = WorkStatistics?.TotalWorkTime ?? TimeSpan.Zero;

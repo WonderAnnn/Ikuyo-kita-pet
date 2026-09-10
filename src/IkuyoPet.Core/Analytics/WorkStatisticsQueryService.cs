@@ -109,17 +109,8 @@ public sealed class WorkStatisticsQueryService : IWorkStatisticsQueryService
         WorkStatisticsPeriod period) => period switch
         {
             WorkStatisticsPeriod.Day => (selectedDate, selectedDate.AddDays(1)),
-            WorkStatisticsPeriod.Week => GetWeekRange(selectedDate),
-            WorkStatisticsPeriod.Month =>
-                (new DateOnly(selectedDate.Year, selectedDate.Month, 1),
-                 new DateOnly(selectedDate.Year, selectedDate.Month, 1).AddMonths(1)),
+            WorkStatisticsPeriod.Week => (selectedDate.AddDays(-6), selectedDate.AddDays(1)),
+            WorkStatisticsPeriod.Month => (selectedDate.AddDays(-29), selectedDate.AddDays(1)),
             _ => throw new ArgumentOutOfRangeException(nameof(period), period, null),
         };
-
-    private static (DateOnly Start, DateOnly EndExclusive) GetWeekRange(DateOnly selectedDate)
-    {
-        var daysFromMonday = ((int)selectedDate.DayOfWeek + 6) % 7;
-        var start = selectedDate.AddDays(-daysFromMonday);
-        return (start, start.AddDays(7));
-    }
 }

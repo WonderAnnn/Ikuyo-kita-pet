@@ -20,7 +20,7 @@
             <UniformGrid Columns="3">
                 <Border Margin="0,0,8,0" Padding="16" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="喝水完成" Foreground="#FF68778D"/><TextBlock Margin="0,6,0,0" Text="{Binding HydrationText}" FontSize="24" FontWeight="SemiBold"/></StackPanel></Border>
                 <Border Margin="4,0" Padding="16" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="活动完成" Foreground="#FF68778D"/><TextBlock Margin="0,6,0,0" Text="{Binding ActivityText}" FontSize="24" FontWeight="SemiBold"/></StackPanel></Border>
-                <Border Margin="8,0,0,0" Padding="16" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="有效工作" Foreground="#FF68778D"/><TextBlock Margin="0,6,0,0" Text="{Binding WorkDurationText}" FontSize="20" FontWeight="SemiBold"/></StackPanel></Border>
+                <Border Margin="8,0,0,0" Padding="16" CornerRadius="14" Background="White"><StackPanel><TextBlock Text="累计有效工作" Foreground="#FF68778D"/><TextBlock Margin="0,6,0,0" Text="{Binding TotalWorkDurationText}" FontSize="24" FontWeight="SemiBold"/><TextBlock Margin="0,4,0,0" Text="今天有效工作" Foreground="#FF68778D" FontSize="13"/><TextBlock Margin="0,1,0,0" Text="{Binding TodayWorkDurationText}" Foreground="#FF68778D" FontSize="13"/></StackPanel></Border>
             </UniformGrid>
             <Border Margin="0,16,0,0" Padding="16" CornerRadius="14" BorderBrush="#FFE2E8F0" BorderThickness="1" Background="#FFFAFCFF">
                 <TextBlock Foreground="#FF68778D" Text="这里只记录提醒时间、接受/搁置/跳过/未响应和白名单应用的有效前台工作时长；不记录睡眠、医疗报告或窗口内容。" TextWrapping="Wrap"/>

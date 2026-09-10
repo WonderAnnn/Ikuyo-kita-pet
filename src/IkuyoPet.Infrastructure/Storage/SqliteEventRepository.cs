@@ -505,6 +505,40 @@ public sealed class SqliteEventRepository(
         return result;
     }
 
+    public async Task<IReadOnlyList<WorkSession>> ReadAllWorkSessionsAsync(
+        CancellationToken cancellationToken)
+    {
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT s.domain_id, a.process_name, a.display_name, s.started_at, s.ended_at,
+                   s.active_seconds, s.end_reason
+            FROM work_sessions AS s
+            INNER JOIN tracked_apps AS a ON a.id = s.tracked_app_id
+            ORDER BY s.started_at, s.domain_id;
+            """;
+
+        var result = new List<WorkSession>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new WorkSession(
+                Guid.ParseExact(reader.GetString(0), "N"),
+                reader.GetString(1),
+                reader.GetString(2),
+                ParseTimestamp(reader.GetString(3)),
+                ParseTimestamp(reader.GetString(4)),
+                reader.GetInt32(5),
+                reader.IsDBNull(6) ? string.Empty : reader.GetString(6)));
+        }
+
+        return result;
+    }
+
     public async Task<IReadOnlyList<TrackedApplication>> ReadTrackedApplicationsAsync(
         CancellationToken cancellationToken)
     {

@@ -63,6 +63,9 @@ public interface IEventRepository
         DateOnly day,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<WorkSession>> ReadAllWorkSessionsAsync(
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
     Task<IReadOnlyList<TrackedApplication>> ReadTrackedApplicationsAsync(
         CancellationToken cancellationToken);
 
