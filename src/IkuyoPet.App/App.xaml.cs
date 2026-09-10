@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Windows;
+using IkuyoPet.Core.Analytics;
 using IkuyoPet.Core.Dashboard;
 using IkuyoPet.Core.Presentation;
 using IkuyoPet.Core.Reminders;
@@ -43,7 +44,12 @@ public partial class App : Application
                 new CurrentUserStartupEntryStore(),
                 Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "IkuyoPet.exe"));
             var appSettingsStore = new AppSettingsStore(connectionString);
-            var viewModel = new MainWindowViewModel(dashboard, repository, startupManager, appSettingsStore);
+            var viewModel = new MainWindowViewModel(
+                dashboard,
+                repository,
+                startupManager,
+                appSettingsStore,
+                new WorkStatisticsQueryService(repository));
             await viewModel.LoadSettingsAsync(CancellationToken.None);
             var window = new MainWindow(viewModel);
             petWindow = new PetWindow();

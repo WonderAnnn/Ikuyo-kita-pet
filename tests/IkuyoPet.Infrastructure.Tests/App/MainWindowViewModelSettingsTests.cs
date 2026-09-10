@@ -1,4 +1,5 @@
 using System.IO;
+using IkuyoPet.Core.Analytics;
 using IkuyoPet.Core.Dashboard;
 using IkuyoPet.Core.Reminders;
 using IkuyoPet.Core.WorkTracking;
@@ -66,6 +67,29 @@ public sealed class MainWindowViewModelSettingsTests
     }
 
     [Fact]
+    public async Task RefreshLoadsWorkStatisticsForSelectedPeriod()
+    {
+        var statistics = new StubStatisticsQueryService();
+        var viewModel = new IkuyoPet.App.MainWindowViewModel(
+            new EmptyDashboard(),
+            workStatisticsQuery: statistics);
+
+        await viewModel.RefreshAsync(
+            DateOnly.FromDateTime(DateTime.Today),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("1小时30分钟", viewModel.WorkStatisticsTotalText);
+        Assert.Equal(["Word", "PyCharm"], viewModel.TopApplicationStats.Select(item => item.DisplayName));
+
+        viewModel.StatisticsPeriodIndex = 1;
+        await viewModel.RefreshAsync(
+            DateOnly.FromDateTime(DateTime.Today),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(WorkStatisticsPeriod.Week, statistics.LastPeriod);
+    }
+
+    [Fact]
     public async Task LoadSettingsAddsMicrosoftWordProcessToDefaults()
     {
         using var database = new TemporaryDatabase();
@@ -93,6 +117,27 @@ public sealed class MainWindowViewModelSettingsTests
                 ActiveWorkRuntime = runtime,
             };
             return Task.FromResult(snapshot);
+        }
+    }
+
+    private sealed class StubStatisticsQueryService : IWorkStatisticsQueryService
+    {
+        public WorkStatisticsPeriod LastPeriod { get; private set; }
+
+        public Task<WorkStatistics> GetAsync(
+            DateOnly selectedDate,
+            WorkStatisticsPeriod period,
+            CancellationToken cancellationToken)
+        {
+            LastPeriod = period;
+            return Task.FromResult(new WorkStatistics(
+                selectedDate,
+                selectedDate.AddDays(1),
+                5_400,
+                [
+                    new WorkApplicationUsage("word", "Word", 3_600, 2d / 3d),
+                    new WorkApplicationUsage("pycharm64", "PyCharm", 1_800, 1d / 3d),
+                ]));
         }
     }
 

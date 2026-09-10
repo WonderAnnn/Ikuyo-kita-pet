@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using IkuyoPet.Core.Analytics;
 using IkuyoPet.Core.Dashboard;
 using IkuyoPet.Core.Reminders;
 using IkuyoPet.Core.Storage;
@@ -16,6 +17,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly IEventRepository? repository;
     private readonly WindowsStartupManager? startupManager;
     private readonly AppSettingsStore? appSettingsStore;
+    private readonly IWorkStatisticsQueryService? workStatisticsQuery;
     private readonly MainWindowState navigation = new();
     private DashboardSnapshot? todaySnapshot;
     private bool petEnabled = true;
@@ -33,6 +35,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private DateOnly? liveWorkDay;
     private string? liveWorkProcessName;
     private int liveWorkSeconds;
+    private int statisticsPeriodIndex;
+    private WorkStatistics? workStatistics;
 
     private static readonly IReadOnlyList<TrackedApplication> DefaultTrackedApplications =
     [
@@ -44,12 +48,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         IDashboardQueryService dashboard,
         IEventRepository? repository = null,
         WindowsStartupManager? startupManager = null,
-        AppSettingsStore? appSettingsStore = null)
+        AppSettingsStore? appSettingsStore = null,
+        IWorkStatisticsQueryService? workStatisticsQuery = null)
     {
         this.dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
         this.repository = repository;
         this.startupManager = startupManager;
         this.appSettingsStore = appSettingsStore;
+        this.workStatisticsQuery = workStatisticsQuery;
         NavigateCommand = new RelayCommand(parameter =>
         {
             if (parameter is string page && Enum.TryParse<MainWindowPage>(page, out var selected)) Navigate(selected);
@@ -66,6 +72,31 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => todaySnapshot;
         private set { todaySnapshot = value; OnPropertyChanged(); OnPropertyChanged(nameof(TimelineItems)); }
     }
+    public int StatisticsPeriodIndex
+    {
+        get => statisticsPeriodIndex;
+        set
+        {
+            var normalized = Math.Clamp(value, 0, 2);
+            if (statisticsPeriodIndex == normalized) return;
+            statisticsPeriodIndex = normalized;
+            OnPropertyChanged();
+            _ = RefreshAsync(DateOnly.FromDateTime(selectedDate), CancellationToken.None);
+        }
+    }
+    public WorkStatistics? WorkStatistics
+    {
+        get => workStatistics;
+        private set
+        {
+            workStatistics = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(WorkStatisticsTotalText));
+            OnPropertyChanged(nameof(TopApplicationStats));
+        }
+    }
+    public string WorkStatisticsTotalText => FormatDuration(GetStatisticsDuration());
+    public IReadOnlyList<WorkApplicationUsage> TopApplicationStats => GetStatisticsApplications();
     public IReadOnlyList<TimelineItem> TimelineItems
     {
         get
@@ -199,6 +230,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             liveWorkProcessName = null;
             liveWorkSeconds = 0;
             OnPropertyChanged(nameof(WorkDurationText));
+            OnPropertyChanged(nameof(WorkStatisticsTotalText));
+            OnPropertyChanged(nameof(TopApplicationStats));
             return;
         }
 
@@ -211,6 +244,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         liveWorkProcessName = delta.ProcessName;
         liveWorkSeconds = checked(liveWorkSeconds + delta.ActiveSeconds);
         OnPropertyChanged(nameof(WorkDurationText));
+        OnPropertyChanged(nameof(WorkStatisticsTotalText));
+        OnPropertyChanged(nameof(TopApplicationStats));
     }
 
     public async Task LoadSettingsAsync(CancellationToken cancellationToken = default)
@@ -391,11 +426,64 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public async Task RefreshAsync(DateOnly day, CancellationToken cancellationToken = default)
     {
         TodaySnapshot = await dashboard.GetAsync(day, cancellationToken);
+        if (workStatisticsQuery is not null)
+        {
+            WorkStatistics = await workStatisticsQuery.GetAsync(
+                day,
+                (WorkStatisticsPeriod)statisticsPeriodIndex,
+                cancellationToken);
+        }
         OnPropertyChanged(nameof(NextReminderText));
         OnPropertyChanged(nameof(HydrationText));
         OnPropertyChanged(nameof(ActivityText));
         OnPropertyChanged(nameof(WorkDurationText));
+        OnPropertyChanged(nameof(WorkStatisticsTotalText));
+        OnPropertyChanged(nameof(TopApplicationStats));
     }
+
+    private TimeSpan GetStatisticsDuration()
+    {
+        var persisted = WorkStatistics?.TotalWorkTime ?? TimeSpan.Zero;
+        var live = statisticsPeriodIndex == (int)WorkStatisticsPeriod.Day &&
+                   TodaySnapshot?.Day == liveWorkDay
+            ? TimeSpan.FromSeconds(liveWorkSeconds)
+            : TimeSpan.Zero;
+        return persisted + live;
+    }
+
+    private IReadOnlyList<WorkApplicationUsage> GetStatisticsApplications()
+    {
+        var applications = WorkStatistics?.TopApplications ?? [];
+        if (statisticsPeriodIndex != (int)WorkStatisticsPeriod.Day ||
+            TodaySnapshot?.Day != liveWorkDay ||
+            liveWorkSeconds <= 0 ||
+            string.IsNullOrWhiteSpace(liveWorkProcessName))
+        {
+            return applications;
+        }
+
+        var liveDisplayName = GetTrackedDisplayName(liveWorkProcessName) ?? liveWorkProcessName;
+        var merged = applications
+            .ToDictionary(
+                item => (item.ProcessName, item.DisplayName),
+                item => item.ActiveSeconds);
+        var key = (liveWorkProcessName, liveDisplayName);
+        merged[key] = merged.GetValueOrDefault(key) + liveWorkSeconds;
+        var totalSeconds = merged.Values.Sum();
+        return merged
+            .Select(item => new WorkApplicationUsage(
+                item.Key.ProcessName,
+                item.Key.DisplayName,
+                item.Value,
+                totalSeconds > 0 ? (double)item.Value / totalSeconds : 0))
+            .OrderByDescending(item => item.ActiveSeconds)
+            .ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Take(5)
+            .ToArray();
+    }
+
+    private static string FormatDuration(TimeSpan duration) =>
+        $"{(int)duration.TotalHours}小时{duration.Minutes}分钟";
 
     private sealed class AsyncRelayCommand(Func<Task> execute) : ICommand
     {
