@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Documents;
 using IkuyoPet.Core.Reminders;
@@ -13,11 +14,17 @@ namespace IkuyoPet.Pet;
 
 public sealed partial class PetWindow : Window, IPetWindowHost
 {
+    private static readonly TimeSpan InteractionCooldown = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan BubbleFadeDuration = TimeSpan.FromMilliseconds(350);
     private bool hasPosition;
     private PetReminderView? currentView;
     private SkinAssetSet? skinAssets;
     private readonly PetGestureTracker gestureTracker = new(SystemParameters.MinimumHorizontalDragDistance, SystemParameters.MinimumVerticalDragDistance);
     private readonly PetBubbleStateMachine bubbleState = new();
+    private readonly PetInteractionThrottle interactionThrottle = new(InteractionCooldown);
+    private CancellationTokenSource? interactionFlushCancellation;
+    private Task? interactionFlushTask;
+    private TimeSpan interactionDuration;
     private CancellationTokenSource? interactionBubbleCancellation;
     private bool dragStarted;
 
@@ -61,6 +68,8 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             interactionBubbleCancellation?.Cancel();
             bubbleState.RestoreIdle();
         }
+        interactionThrottle.Reset();
+        interactionFlushCancellation?.Cancel();
         base.Hide();
     }
     public async Task ShowFeedbackAsync(string text, CancellationToken cancellationToken)
@@ -71,10 +80,16 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         await Dispatcher.InvokeAsync(() =>
         {
             interactionBubbleCancellation?.Cancel();
+            interactionThrottle.Reset();
+            interactionFlushCancellation?.Cancel();
             if (!bubbleState.BeginFeedback()) return;
             currentView = null;
             ReminderText.Inlines.Clear();
             ReminderText.Inlines.Add(new Run(text));
+            Bubble.BeginAnimation(UIElement.OpacityProperty, null);
+            BubbleArrow.BeginAnimation(UIElement.OpacityProperty, null);
+            Bubble.Opacity = 1;
+            BubbleArrow.Opacity = 1;
             Bubble.Visibility = Visibility.Visible;
             BubbleArrow.Visibility = Visibility.Visible;
             if (!IsVisible) Show();
@@ -166,9 +181,15 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     private void ShowCore(PetReminderView view)
     {
         interactionBubbleCancellation?.Cancel();
+        interactionThrottle.Reset();
+        interactionFlushCancellation?.Cancel();
         bubbleState.BeginReminder();
         currentView = view;
         ShowReminderSkin();
+        Bubble.BeginAnimation(UIElement.OpacityProperty, null);
+        BubbleArrow.BeginAnimation(UIElement.OpacityProperty, null);
+        Bubble.Opacity = 1;
+        BubbleArrow.Opacity = 1;
         Bubble.Visibility = Visibility.Visible;
         BubbleArrow.Visibility = Visibility.Visible;
         RenderView(view);
@@ -256,6 +277,22 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(duration, TimeSpan.Zero);
         cancellationToken.ThrowIfCancellationRequested();
+        var decision = await Dispatcher.InvokeAsync(
+            () => interactionThrottle.Offer(text, DateTimeOffset.UtcNow),
+            System.Windows.Threading.DispatcherPriority.Normal,
+            cancellationToken);
+        if (!decision.ShowImmediately)
+        {
+            interactionDuration = duration;
+            ScheduleInteractionFlush(decision.NextDueAt);
+            return;
+        }
+
+        await ShowInteractionNowAsync(decision.Text!, duration, cancellationToken);
+    }
+
+    private async Task ShowInteractionNowAsync(string text, TimeSpan duration, CancellationToken cancellationToken)
+    {
         var tokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var accepted = false;
         await Dispatcher.InvokeAsync(() =>
@@ -267,8 +304,13 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             currentView = null;
             ReminderText.Inlines.Clear();
             ReminderText.Inlines.Add(new Run(text));
+            Bubble.BeginAnimation(UIElement.OpacityProperty, null);
+            BubbleArrow.BeginAnimation(UIElement.OpacityProperty, null);
+            Bubble.Opacity = 0;
+            BubbleArrow.Opacity = 0;
             Bubble.Visibility = Visibility.Visible;
             BubbleArrow.Visibility = Visibility.Visible;
+            BeginBubbleFadeIn();
             if (!IsVisible) Show();
             ClampToWorkArea();
         }, System.Windows.Threading.DispatcherPriority.Normal, cancellationToken);
@@ -279,10 +321,71 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             await Dispatcher.InvokeAsync(() =>
             {
                 if (ReferenceEquals(interactionBubbleCancellation, tokenSource) && bubbleState.State == PetBubbleState.Interaction)
-                    RestoreIdle();
+                    BeginBubbleFadeOut(tokenSource);
             });
         }
         finally { tokenSource.Dispose(); }
+    }
+
+    private void ScheduleInteractionFlush(DateTimeOffset dueAt)
+    {
+        if (interactionFlushTask is { IsCompleted: false }) return;
+        interactionFlushCancellation?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        interactionFlushCancellation = cancellation;
+        interactionFlushTask = FlushInteractionAsync(dueAt, cancellation);
+    }
+
+    private async Task FlushInteractionAsync(DateTimeOffset dueAt, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            var delay = dueAt - DateTimeOffset.UtcNow;
+            if (delay > TimeSpan.Zero)
+                await Task.Delay(delay, cancellation.Token);
+
+            var pendingText = await Dispatcher.InvokeAsync(
+                () => interactionThrottle.Flush(DateTimeOffset.UtcNow),
+                System.Windows.Threading.DispatcherPriority.Normal,
+                cancellation.Token);
+            if (!string.IsNullOrWhiteSpace(pendingText))
+                await ShowInteractionNowAsync(pendingText, interactionDuration, cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(interactionFlushCancellation, cancellation))
+            {
+                interactionFlushCancellation = null;
+                interactionFlushTask = null;
+            }
+            cancellation.Dispose();
+        }
+    }
+
+    private void BeginBubbleFadeIn()
+    {
+        var duration = new Duration(BubbleFadeDuration);
+        Bubble.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, duration));
+        BubbleArrow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, duration));
+    }
+
+    private void BeginBubbleFadeOut(CancellationTokenSource tokenSource)
+    {
+        var duration = new Duration(BubbleFadeDuration);
+        var animation = new DoubleAnimation(1, 0, duration);
+        animation.Completed += (_, _) =>
+        {
+            if (ReferenceEquals(interactionBubbleCancellation, tokenSource) && bubbleState.State == PetBubbleState.Interaction)
+            {
+                interactionBubbleCancellation = null;
+                RestoreIdle();
+            }
+        };
+        Bubble.BeginAnimation(UIElement.OpacityProperty, animation);
+        BubbleArrow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, duration));
     }
     private void ClampToWorkArea()
     {
@@ -294,6 +397,8 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     protected override void OnClosed(EventArgs e)
     {
         interactionBubbleCancellation?.Cancel();
+        interactionFlushCancellation?.Cancel();
+        interactionThrottle.Reset();
         gestureTracker.Cancel();
         PetImage.Source = null;
         base.OnClosed(e);
