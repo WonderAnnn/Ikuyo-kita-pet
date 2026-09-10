@@ -64,11 +64,45 @@ public sealed class WorkTrackingServiceTests
         var repository = await RunAsync(
             new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start),
             new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(5)),
-            new ActivitySample("code", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(10)));
+            new ActivitySample("code", false, false, TimeSpan.FromMinutes(1), start.AddSeconds(10)));
 
         var session = Assert.Single(repository.Sessions);
         Assert.Equal("pycharm64", session.ProcessName);
         Assert.Equal("app-switched", session.EndReason);
+    }
+
+    [Fact]
+    public async Task CountsActiveIntervalWhenSwitchingBetweenWhitelistedApplications()
+    {
+        var start = new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.FromHours(8));
+        var probe = new SequenceProbe(
+            new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start),
+            new ActivitySample("Code", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(5)),
+            new ActivitySample("Code", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(10)));
+        var repository = new RecordingRepository();
+        var service = new WorkTrackingService(probe, repository);
+
+        var first = await service.SampleOnceAsync(TestContext.Current.CancellationToken);
+        var second = await service.SampleOnceAsync(TestContext.Current.CancellationToken);
+        var third = await service.SampleOnceAsync(TestContext.Current.CancellationToken);
+        await service.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, first.ActiveSeconds);
+        Assert.Equal(5, second.ActiveSeconds);
+        Assert.Equal(5, third.ActiveSeconds);
+        Assert.Equal(10, repository.Sessions.Sum(session => session.ActiveSeconds));
+        Assert.Collection(
+            repository.Sessions,
+            session =>
+            {
+                Assert.Equal("pycharm64", session.ProcessName);
+                Assert.Equal(5, session.ActiveSeconds);
+            },
+            session =>
+            {
+                Assert.Equal("Code", session.ProcessName);
+                Assert.Equal(5, session.ActiveSeconds);
+            });
     }
 
     [Fact]

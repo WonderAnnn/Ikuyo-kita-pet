@@ -99,7 +99,15 @@ public partial class App : Application
                     activityProbe,
                     repository,
                     displayNameResolver: viewModel.GetTrackedDisplayName),
-                reminderLoop.ConsumeActiveWorkAsync);
+                async (delta, cancellationToken) =>
+                {
+                    await reminderLoop.ConsumeActiveWorkAsync(delta, cancellationToken);
+                    await window.Dispatcher.InvokeAsync(
+                        () => viewModel.RefreshAsync(
+                            DateOnly.FromDateTime(viewModel.SelectedDate),
+                            cancellationToken),
+                        System.Windows.Threading.DispatcherPriority.Background).Task.Unwrap();
+                });
 
             petWindow.ActionInvoked += async (_, args) =>
             {

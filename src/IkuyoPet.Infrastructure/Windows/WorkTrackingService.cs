@@ -50,6 +50,13 @@ public sealed class WorkTrackingService
             var elapsed = current.ObservedAt - previous.ObservedAt;
             activeSeconds = (int)Math.Floor(elapsed.TotalSeconds);
             _activeSeconds = checked(_activeSeconds + activeSeconds);
+
+            if (!string.Equals(previous.AppName, current.AppName, StringComparison.OrdinalIgnoreCase))
+            {
+                await FlushAsync(current.ObservedAt, "app-switched", cancellationToken);
+                _sessionStartedAt = current.ObservedAt;
+                _processName = current.AppName;
+            }
         }
         else if (_sessionStartedAt is not null && _previous is { } lastCounted)
         {
@@ -80,8 +87,7 @@ public sealed class WorkTrackingService
     private bool IsValidInterval(ActivitySample previous, ActivitySample current)
     {
         var elapsed = current.ObservedAt - previous.ObservedAt;
-        return previous.AppName == current.AppName &&
-               previous.IsWhitelistedForeground &&
+        return previous.IsWhitelistedForeground &&
                current.IsWhitelistedForeground &&
                !previous.IsLocked &&
                !current.IsLocked &&
