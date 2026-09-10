@@ -48,4 +48,28 @@ public sealed class LogFilterStyleContractTests
         Assert.Contains("LogComboBoxStyle", view);
         Assert.Contains("AutomationProperties.Name", view);
     }
+
+    [Fact]
+    public void LogViewContainsPeriodStatisticsAndTopApplications()
+    {
+        var view = Read("src/IkuyoPet.App/Views/LogView.xaml");
+
+        Assert.Contains("StatisticsPeriodIndex", view);
+        Assert.Contains("WorkStatisticsTotalText", view);
+        Assert.Contains("TopApplicationStats", view);
+        Assert.Contains("ProgressBar", view);
+        Assert.Contains(@"Content=""日""", view);
+        Assert.Contains(@"Content=""周""", view);
+        Assert.Contains(@"Content=""月""", view);
+    }
+
+    [Fact]
+    public void LogFilterStylesSuppressSystemBlueSelection()
+    {
+        var styles = Read("src/IkuyoPet.App/Themes/LogFilterStyles.xaml");
+
+        Assert.Contains(@"FocusVisualStyle=""{x:Null}""", styles);
+        Assert.Contains(@"SelectionBrush=""#FFFFD9E8""", styles);
+        Assert.Contains(@"SelectionTextBrush=""#FF263247""", styles);
+    }
 }
