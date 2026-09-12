@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="..\..\assets\interactions\default\click.zh-CN.json" Link="interactions\default\click.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\bubbles\**\bubble.png" Link="assets\bubbles\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\IkuyoPet.Core\IkuyoPet.Core.csproj" />
   </ItemGroup>
 </Project>

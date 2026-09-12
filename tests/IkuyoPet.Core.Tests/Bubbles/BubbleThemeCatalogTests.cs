@@ -40,4 +40,12 @@ public sealed class BubbleThemeCatalogTests
             Directory.Delete(root, recursive: true);
         }
     }
+    [Fact]
+    public void ThemeDimensionsRejectNonFiniteValues()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BubbleSafeArea(double.NaN, 0.2, 0.4, 0.4));
+        var template = BubbleThemeCatalog.BuiltInThemes[0];
+        Assert.Throws<ArgumentOutOfRangeException>(() => template with { MinContentWidth = double.PositiveInfinity });
+        Assert.Throws<ArgumentOutOfRangeException>(() => template with { MaxContentHeight = double.NaN });
+    }
 }

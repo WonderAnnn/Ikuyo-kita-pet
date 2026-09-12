@@ -1,3 +1,5 @@
+using System;
+
 namespace IkuyoPet.Core.Bubbles;
 
 public sealed record BubbleSliceInsets(int Left, int Top, int Right, int Bottom)
@@ -13,7 +15,8 @@ public sealed record BubbleSafeArea(double Left, double Top, double Width, doubl
 {
     public BubbleSafeArea
     {
-        if (Left is < 0 or > 1 || Top is < 0 or > 1 || Width <= 0 || Height <= 0 || Left + Width > 1 || Top + Height > 1)
+        if (!double.IsFinite(Left) || !double.IsFinite(Top) || !double.IsFinite(Width) || !double.IsFinite(Height) ||
+            Left is < 0 or > 1 || Top is < 0 or > 1 || Width <= 0 || Height <= 0 || Left + Width > 1 || Top + Height > 1)
             throw new ArgumentOutOfRangeException(nameof(Left), "Safe area must be a normalized rectangle inside the image.");
     }
 }
@@ -41,8 +44,10 @@ public sealed record BubbleThemeDefinition(
         if (string.IsNullOrWhiteSpace(ResourcePath)) throw new ArgumentException("Theme resource path is required.", nameof(ResourcePath));
         if (string.IsNullOrWhiteSpace(PreviewPath)) throw new ArgumentException("Theme preview path is required.", nameof(PreviewPath));
         if (PixelWidth <= 0 || PixelHeight <= 0) throw new ArgumentOutOfRangeException(nameof(PixelWidth));
-        if (MinContentWidth <= 0 || MaxContentWidth < MinContentWidth) throw new ArgumentOutOfRangeException(nameof(MinContentWidth));
-        if (MinContentHeight <= 0 || MaxContentHeight < MinContentHeight) throw new ArgumentOutOfRangeException(nameof(MinContentHeight));
+        if (!double.IsFinite(MinContentWidth) || !double.IsFinite(MaxContentWidth) || MinContentWidth <= 0 || MaxContentWidth < MinContentWidth)
+            throw new ArgumentOutOfRangeException(nameof(MinContentWidth));
+        if (!double.IsFinite(MinContentHeight) || !double.IsFinite(MaxContentHeight) || MinContentHeight <= 0 || MaxContentHeight < MinContentHeight)
+            throw new ArgumentOutOfRangeException(nameof(MinContentHeight));
         ArgumentNullException.ThrowIfNull(SliceInsets);
         ArgumentNullException.ThrowIfNull(TextSafeArea);
     }

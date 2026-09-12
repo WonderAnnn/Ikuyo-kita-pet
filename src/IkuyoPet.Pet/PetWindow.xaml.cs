@@ -424,7 +424,8 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             Canvas.SetLeft(ReminderText, 18);
             Canvas.SetTop(ReminderText, 14);
             ReminderText.Width = 320;
-            ReminderText.Height = 88;
+            ReminderText.Height = double.NaN;
+            ReminderText.MinHeight = 88;
             UpdateWindowLayout();
             return;
         }
@@ -435,7 +436,8 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         Canvas.SetLeft(ReminderText, layout.TextArea.Left + 28);
         Canvas.SetTop(ReminderText, layout.TextArea.Top + 22);
         ReminderText.Width = layout.TextArea.Width;
-        ReminderText.Height = layout.TextArea.Height;
+        ReminderText.Height = double.NaN;
+        ReminderText.MinHeight = layout.TextArea.Height;
         UpdateWindowLayout();
     }
 

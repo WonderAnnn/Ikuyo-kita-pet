@@ -74,4 +74,34 @@ public sealed class BubbleChromeContractTests
         Assert.Contains("BubbleThemeCatalog.BuiltInThemes[0]", source);
         Assert.Contains("Path.Combine(AppContext.BaseDirectory, \"assets\", \"bubbles\")", source);
     }
+    [Fact]
+    public void PublicSliceGeometryRejectsNonFiniteInputs()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => BubbleChrome.CreateSlices(
+            new Size(double.NaN, 80), new Thickness(10), new Size(180, 130)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BubbleChrome.CreateSlices(
+            new Size(100, 80), new Thickness(double.PositiveInfinity, 8, 12, 6), new Size(180, 130)));
+    }
+
+    [Fact]
+    public void NormalThemeFillsOnlyTheExpandableCenterSlice()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            RepositoryPaths.Root, "src", "IkuyoPet.Pet", "BubbleChrome.cs"));
+
+        Assert.DoesNotContain("DrawRectangle(Brushes.White, null, new Rect(RenderSize))", source);
+        Assert.Contains("DrawRectangle(Brushes.White, null, slices[4].Destination)", source);
+    }
+
+    [Fact]
+    public void PetProjectCopiesBubblePngsUnderAssetsFolder()
+    {
+        var project = File.ReadAllText(Path.Combine(
+            RepositoryPaths.Root, "src", "IkuyoPet.Pet", "IkuyoPet.Pet.csproj"));
+
+        Assert.Contains(@"assets\bubbles\**\bubble.png", project);
+        Assert.Contains(@"assets\bubbles\%(RecursiveDir)%(Filename)%(Extension)", project);
+        Assert.Contains("CopyToOutputDirectory=\"PreserveNewest\"", project);
+        Assert.Contains("CopyToPublishDirectory=\"PreserveNewest\"", project);
+    }
 }

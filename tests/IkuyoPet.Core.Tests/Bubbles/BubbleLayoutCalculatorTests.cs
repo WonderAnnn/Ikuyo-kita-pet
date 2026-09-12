@@ -65,4 +65,23 @@ public sealed class BubbleLayoutCalculatorTests
         Assert.True(layout.ContentHeight > theme.MaxContentHeight);
         Assert.True(layout.TextArea.Height >= layout.LineCount * 24);
     }
+    [Fact]
+    public void WrappedLineCountAddsEveryExplicitParagraph()
+    {
+        var theme = BubbleThemeCatalog.BuiltInThemes[0];
+        var layout = BubbleLayoutCalculator.Calculate(theme, $"短行\n{new string('长', 60)}\n");
+
+        Assert.True(layout.LineCount >= 7);
+        Assert.True(layout.TextArea.Height >= layout.LineCount * 24);
+    }
+
+    [Fact]
+    public void PathologicalTextUsesTheWindowSafetyHeightCap()
+    {
+        var theme = BubbleThemeCatalog.BuiltInThemes[0];
+        var layout = BubbleLayoutCalculator.Calculate(theme, new string('极', 5000));
+
+        Assert.Equal(BubbleLayoutCalculator.ContentHeightHardCap, layout.ContentHeight);
+        Assert.Equal(theme.MaxContentWidth, layout.ContentWidth);
+    }
 }

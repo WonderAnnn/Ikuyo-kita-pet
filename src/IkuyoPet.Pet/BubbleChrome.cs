@@ -28,8 +28,7 @@ public sealed class BubbleChrome : FrameworkElement
         get => sliceInsets;
         set
         {
-            if (value.Left < 0 || value.Top < 0 || value.Right < 0 || value.Bottom < 0)
-                throw new ArgumentOutOfRangeException(nameof(value));
+            ValidateInsets(value, nameof(value));
             sliceInsets = value;
             InvalidateVisual();
         }
@@ -40,8 +39,7 @@ public sealed class BubbleChrome : FrameworkElement
         get => logicalSliceInsets;
         set
         {
-            if (value.Left < 0 || value.Top < 0 || value.Right < 0 || value.Bottom < 0)
-                throw new ArgumentOutOfRangeException(nameof(value));
+            ValidateInsets(value, nameof(value));
             logicalSliceInsets = value;
             InvalidateVisual();
         }
@@ -54,7 +52,6 @@ public sealed class BubbleChrome : FrameworkElement
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
-        drawingContext.DrawRectangle(Brushes.White, null, new Rect(RenderSize));
         if (Source is null)
         {
             drawingContext.DrawRoundedRectangle(
@@ -70,6 +67,7 @@ public sealed class BubbleChrome : FrameworkElement
         var slices = CreateSlices(
             new Size(Source.PixelWidth, Source.PixelHeight), sourceInsets,
             destinationInsets, RenderSize);
+        drawingContext.DrawRectangle(Brushes.White, null, slices[4].Destination);
 
         foreach (var slice in slices)
         {
@@ -89,6 +87,8 @@ public sealed class BubbleChrome : FrameworkElement
     {
         ValidateSize(sourceSize, nameof(sourceSize));
         ValidateSize(destinationSize, nameof(destinationSize));
+        ValidateInsets(sourceInsets, nameof(sourceInsets));
+        ValidateInsets(destinationInsets, nameof(destinationInsets));
         var source = ClampInsets(sourceInsets, sourceSize);
         var destination = ClampInsets(destinationInsets, destinationSize);
         var sourceX = new[] { 0d, source.Left, sourceSize.Width - source.Right, sourceSize.Width };
@@ -118,9 +118,16 @@ public sealed class BubbleChrome : FrameworkElement
             insets.Right * horizontalScale, insets.Bottom * verticalScale);
     }
 
+    private static void ValidateInsets(Thickness insets, string parameterName)
+    {
+        if (!double.IsFinite(insets.Left) || !double.IsFinite(insets.Top) ||
+            !double.IsFinite(insets.Right) || !double.IsFinite(insets.Bottom) ||
+            insets.Left < 0 || insets.Top < 0 || insets.Right < 0 || insets.Bottom < 0)
+            throw new ArgumentOutOfRangeException(parameterName);
+    }
     private static void ValidateSize(Size size, string parameterName)
     {
-        if (size.Width <= 0 || size.Height <= 0 || double.IsInfinity(size.Width) || double.IsInfinity(size.Height))
+        if (!double.IsFinite(size.Width) || !double.IsFinite(size.Height) || size.Width <= 0 || size.Height <= 0)
             throw new ArgumentOutOfRangeException(parameterName);
     }
 }
