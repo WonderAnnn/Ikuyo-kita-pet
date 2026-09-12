@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Documents;
+using IkuyoPet.Core.Bubbles;
 using IkuyoPet.Core.Reminders;
 using IkuyoPet.Pet.Skins;
 using IkuyoPet.Pet.Interaction;
@@ -27,6 +28,9 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     private TimeSpan interactionDuration;
     private CancellationTokenSource? interactionBubbleCancellation;
     private bool dragStarted;
+    private BubbleThemeDefinition? currentBubbleTheme;
+    private string lastBubbleText = string.Empty;
+    private IReadOnlyList<string> lastActionLabels = Array.Empty<string>();
 
     public event EventHandler? InteractionRequested;
 
@@ -40,6 +44,28 @@ public sealed partial class PetWindow : Window, IPetWindowHost
 
     public event EventHandler<PetReminderActionInvokedEventArgs>? ActionInvoked;
 
+    public void SetBubbleTheme(BubbleThemeDefinition theme, string resourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourcePath);
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => SetBubbleTheme(theme, resourcePath));
+            return;
+        }
+
+        currentBubbleTheme = theme;
+        BubbleDecoration.SliceInsets = new Thickness(
+            theme.SliceInsets.Left, theme.SliceInsets.Top,
+            theme.SliceInsets.Right, theme.SliceInsets.Bottom);
+        BubbleDecoration.SliceScale = CalculateSliceScale(theme);
+        BubbleDecoration.Source = TryLoadBubbleImage(resourcePath);
+        if (Bubble.Visibility == Visibility.Visible)
+        {
+            ApplyBubbleLayout(lastBubbleText, lastActionLabels);
+            ClampToWorkArea();
+        }
+    }
     public Task ShowAsync(PetReminderView view, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(view);
@@ -86,12 +112,10 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             currentView = null;
             ReminderText.Inlines.Clear();
             ReminderText.Inlines.Add(new Run(text));
+            ApplyBubbleLayout(text);
             Bubble.BeginAnimation(UIElement.OpacityProperty, null);
-            BubbleArrow.BeginAnimation(UIElement.OpacityProperty, null);
             Bubble.Opacity = 1;
-            BubbleArrow.Opacity = 1;
             Bubble.Visibility = Visibility.Visible;
-            BubbleArrow.Visibility = Visibility.Visible;
             if (!IsVisible) Show();
             ClampToWorkArea();
         }, System.Windows.Threading.DispatcherPriority.Normal, cancellationToken);
@@ -114,7 +138,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         currentView = null;
         ShowIdleSkin();
         Bubble.Visibility = Visibility.Collapsed;
-        BubbleArrow.Visibility = Visibility.Collapsed;
+        RestoreCompactWindowLayout();
     }
 
     public void SetSkinAssets(SkinAssetSet assets)
@@ -187,12 +211,10 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         currentView = view;
         ShowReminderSkin();
         Bubble.BeginAnimation(UIElement.OpacityProperty, null);
-        BubbleArrow.BeginAnimation(UIElement.OpacityProperty, null);
         Bubble.Opacity = 1;
-        BubbleArrow.Opacity = 1;
         Bubble.Visibility = Visibility.Visible;
-        BubbleArrow.Visibility = Visibility.Visible;
         RenderView(view);
+        ApplyBubbleLayout(view.Text, view.Actions.Select(action => action.Label).ToArray());
         if (!hasPosition)
         {
             var workArea = SystemParameters.WorkArea;
@@ -304,12 +326,10 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             currentView = null;
             ReminderText.Inlines.Clear();
             ReminderText.Inlines.Add(new Run(text));
+            ApplyBubbleLayout(text);
             Bubble.BeginAnimation(UIElement.OpacityProperty, null);
-            BubbleArrow.BeginAnimation(UIElement.OpacityProperty, null);
             Bubble.Opacity = 0;
-            BubbleArrow.Opacity = 0;
             Bubble.Visibility = Visibility.Visible;
-            BubbleArrow.Visibility = Visibility.Visible;
             BeginBubbleFadeIn();
             if (!IsVisible) Show();
             ClampToWorkArea();
@@ -374,7 +394,6 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     {
         var duration = new Duration(BubbleFadeDuration);
         Bubble.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, duration));
-        BubbleArrow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, duration));
     }
 
     private void BeginBubbleFadeOut(CancellationTokenSource tokenSource)
@@ -390,7 +409,86 @@ public sealed partial class PetWindow : Window, IPetWindowHost
             }
         };
         Bubble.BeginAnimation(UIElement.OpacityProperty, animation);
-        BubbleArrow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, duration));
+    }
+    private void ApplyBubbleLayout(string text, IReadOnlyList<string>? actionLabels = null)
+    {
+        lastBubbleText = text;
+        lastActionLabels = actionLabels ?? Array.Empty<string>();
+        if (currentBubbleTheme is null)
+        {
+            Bubble.Width = 356;
+            Bubble.Height = 116;
+            Canvas.SetLeft(ReminderText, 18);
+            Canvas.SetTop(ReminderText, 14);
+            ReminderText.Width = 320;
+            ReminderText.Height = 88;
+            UpdateWindowLayout();
+            return;
+        }
+
+        var layout = BubbleLayoutCalculator.Calculate(currentBubbleTheme, text, lastActionLabels);
+        Bubble.Width = layout.WindowWidth;
+        Bubble.Height = layout.WindowHeight;
+        Canvas.SetLeft(ReminderText, layout.TextArea.Left + 28);
+        Canvas.SetTop(ReminderText, layout.TextArea.Top + 22);
+        ReminderText.Width = layout.TextArea.Width;
+        ReminderText.Height = layout.TextArea.Height;
+        UpdateWindowLayout();
+    }
+
+    private void UpdateWindowLayout()
+    {
+        const double bubbleMargin = 12;
+        const double petHeight = 300;
+        const double bottomMargin = 16;
+        var bubbleBottom = Canvas.GetTop(Bubble) + Bubble.Height;
+        var petTop = bubbleBottom + 4;
+        Width = Math.Max(380, Bubble.Width + bubbleMargin * 2);
+        Height = petTop + petHeight + bottomMargin;
+        RootCanvas.Width = Width;
+        RootCanvas.Height = Height;
+        Canvas.SetLeft(Bubble, (Width - Bubble.Width) / 2);
+        Canvas.SetTop(PetHitArea, petTop);
+        Canvas.SetLeft(PetHitArea, (Width - PetHitArea.Width) / 2);
+    }
+
+    private void RestoreCompactWindowLayout()
+    {
+        Width = 380;
+        Height = 430;
+        RootCanvas.Width = Width;
+        RootCanvas.Height = Height;
+        Canvas.SetLeft(PetHitArea, 110);
+        Canvas.SetTop(PetHitArea, 104);
+        ClampToWorkArea();
+    }
+
+    private static double CalculateSliceScale(BubbleThemeDefinition theme)
+    {
+        const double horizontalPadding = 56;
+        const double verticalPadding = 44;
+        return Math.Min(
+            (theme.MinContentWidth + horizontalPadding) / theme.PixelWidth,
+            (theme.MinContentHeight + verticalPadding) / theme.PixelHeight);
+    }
+
+    private static BitmapSource? TryLoadBubbleImage(string resourcePath)
+    {
+        try
+        {
+            if (!File.Exists(resourcePath)) return null;
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.UriSource = new Uri(Path.GetFullPath(resourcePath), UriKind.Absolute);
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception exception) when (exception is IOException or NotSupportedException or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
     }
     private void ClampToWorkArea()
     {

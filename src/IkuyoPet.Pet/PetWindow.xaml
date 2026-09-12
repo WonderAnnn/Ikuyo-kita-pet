@@ -1,6 +1,7 @@
 <Window x:Class="IkuyoPet.Pet.PetWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:IkuyoPet.Pet"
         Title="Ikuyo Pet"
         Width="380"
         Height="430"
@@ -17,33 +18,31 @@
             Width="380"
             Height="430"
             Background="Transparent">
-        <Border x:Name="Bubble"
-                Visibility="Collapsed"
-                Canvas.Left="12"
-                Canvas.Top="8"
-                Width="356"
-                MinHeight="88"
-                Padding="18,14"
-                Background="#FDFEFF"
-                BorderBrush="#E7DDF6"
-                BorderThickness="1"
-                CornerRadius="18"
-                SnapsToDevicePixels="True">
-            <TextBlock x:Name="ReminderText"
-                       Foreground="#332B3D"
-                       FontSize="16"
-                       LineHeight="24"
-                       TextWrapping="Wrap" />
-        </Border>
-        <Polygon x:Name="BubbleArrow"
-                 Visibility="Collapsed"
-                 Canvas.Left="178"
-                 Canvas.Top="88"
-                 Fill="#FDFEFF"
-                 Stroke="#E7DDF6"
-                 StrokeThickness="1"
-                 Points="0,0 22,0 6,16" />
+        <Grid x:Name="Bubble"
+              Panel.ZIndex="10"
+              Visibility="Collapsed"
+              Canvas.Left="12"
+              Canvas.Top="8"
+              Width="356"
+              Height="116"
+              SnapsToDevicePixels="True">
+            <local:BubbleChrome x:Name="BubbleDecoration"
+                                Panel.ZIndex="10"
+                                IsHitTestVisible="False" />
+            <Canvas Panel.ZIndex="20" Background="Transparent">
+                <TextBlock x:Name="ReminderText"
+                           Panel.ZIndex="20"
+                           Foreground="#332B3D"
+                           FontSize="16"
+                           LineHeight="24"
+                           TextAlignment="Left"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
+            </Canvas>
+        </Grid>
         <Border x:Name="PetHitArea"
+                Panel.ZIndex="0"
                 Canvas.Left="110"
                 Canvas.Top="104"
                 Width="180"
