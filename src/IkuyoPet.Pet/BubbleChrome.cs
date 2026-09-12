@@ -15,7 +15,7 @@ public sealed class BubbleChrome : FrameworkElement
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
     private Thickness sliceInsets;
-    private double sliceScale = 1;
+    private Thickness logicalSliceInsets;
 
     public BitmapSource? Source
     {
@@ -35,13 +35,14 @@ public sealed class BubbleChrome : FrameworkElement
         }
     }
 
-    public double SliceScale
+    public Thickness LogicalSliceInsets
     {
-        get => sliceScale;
+        get => logicalSliceInsets;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-            sliceScale = value;
+            if (value.Left < 0 || value.Top < 0 || value.Right < 0 || value.Bottom < 0)
+                throw new ArgumentOutOfRangeException(nameof(value));
+            logicalSliceInsets = value;
             InvalidateVisual();
         }
     }
@@ -64,9 +65,8 @@ public sealed class BubbleChrome : FrameworkElement
         }
 
         var sourceInsets = ClampInsets(SliceInsets, new Size(Source.PixelWidth, Source.PixelHeight));
-        var destinationInsets = new Thickness(
-            sourceInsets.Left * SliceScale, sourceInsets.Top * SliceScale,
-            sourceInsets.Right * SliceScale, sourceInsets.Bottom * SliceScale);
+        var destinationInsets = LogicalSliceInsets;
+
         var slices = CreateSlices(
             new Size(Source.PixelWidth, Source.PixelHeight), sourceInsets,
             destinationInsets, RenderSize);
@@ -84,7 +84,7 @@ public sealed class BubbleChrome : FrameworkElement
         }
     }
 
-    private static IReadOnlyList<BubbleSlice> CreateSlices(
+    public static IReadOnlyList<BubbleSlice> CreateSlices(
         Size sourceSize, Thickness sourceInsets, Thickness destinationInsets, Size destinationSize)
     {
         ValidateSize(sourceSize, nameof(sourceSize));

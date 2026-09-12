@@ -56,4 +56,13 @@ public sealed class BubbleLayoutCalculatorTests
         Assert.True(guitarLayout.ContentWidth > chibiLayout.ContentWidth);
         Assert.True(guitarLayout.ContentWidth <= guitar.MaxContentWidth);
     }
+    [Fact]
+    public void VeryLongTextAreaCoversEveryEstimatedLine()
+    {
+        var theme = BubbleThemeCatalog.BuiltInThemes[0];
+        var layout = BubbleLayoutCalculator.Calculate(theme, new string('长', 500));
+
+        Assert.True(layout.ContentHeight > theme.MaxContentHeight);
+        Assert.True(layout.TextArea.Height >= layout.LineCount * 24);
+    }
 }

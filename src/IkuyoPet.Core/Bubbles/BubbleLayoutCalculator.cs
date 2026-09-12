@@ -29,8 +29,8 @@ public static class BubbleLayoutCalculator
         var safeWidth = Math.Max(CharacterWidth, contentWidth * theme.TextSafeArea.Width);
         var wrappedLines = Math.Max(explicitLines, (int)Math.Ceiling(Math.Max(1, estimatedCharacters) * CharacterWidth / safeWidth));
         var desiredHeight = wrappedLines * LineHeight + VerticalPadding;
-        var contentHeight = Math.Clamp(desiredHeight, theme.MinContentHeight, theme.MaxContentHeight);
-        var textHeight = Math.Min(contentHeight - 8, wrappedLines * LineHeight);
+        var contentHeight = Math.Max(desiredHeight, theme.MinContentHeight);
+        var textHeight = wrappedLines * LineHeight;
         var textWidth = Math.Max(CharacterWidth, contentWidth * theme.TextSafeArea.Width);
         var textLeft = contentWidth * theme.TextSafeArea.Left;
         var textTop = Math.Max(0, (contentHeight - textHeight) / 2);

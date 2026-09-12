@@ -30,6 +30,24 @@ public sealed class BubbleChromeContractTests
     }
 
     [Fact]
+    public void LogicalCornerInsetsStayFixedWhenTheChromeGrows()
+    {
+        var sourceInsets = new Thickness(200, 120, 180, 100);
+        var logicalInsets = new Thickness(20, 12, 18, 10);
+
+        var compact = BubbleChrome.CreateSlices(
+            new Size(1000, 800), sourceInsets, logicalInsets, new Size(300, 180));
+        var expanded = BubbleChrome.CreateSlices(
+            new Size(1000, 800), sourceInsets, logicalInsets, new Size(620, 360));
+
+        Assert.Equal(new Rect(0, 0, 20, 12), compact[0].Destination);
+        Assert.Equal(compact[0].Destination.Size, expanded[0].Destination.Size);
+        Assert.Equal(compact[1].Destination.Height, expanded[1].Destination.Height);
+        Assert.NotEqual(compact[1].Destination.Width, expanded[1].Destination.Width);
+        Assert.Equal(compact[3].Destination.Width, expanded[3].Destination.Width);
+        Assert.NotEqual(compact[3].Destination.Height, expanded[3].Destination.Height);
+    }
+    [Fact]
     public void PetWindowUsesOneDecorativeChromeWithTextAboveIt()
     {
         var xaml = File.ReadAllText(Path.Combine(
@@ -53,5 +71,7 @@ public sealed class BubbleChromeContractTests
         Assert.Contains("BubbleLayoutCalculator.Calculate", source);
         Assert.Contains("ApplyBubbleLayout(text", source);
         Assert.Contains("ApplyBubbleLayout(view.Text", source);
+        Assert.Contains("BubbleThemeCatalog.BuiltInThemes[0]", source);
+        Assert.Contains("Path.Combine(AppContext.BaseDirectory, \"assets\", \"bubbles\")", source);
     }
 }

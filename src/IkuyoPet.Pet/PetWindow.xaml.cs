@@ -37,6 +37,9 @@ public sealed partial class PetWindow : Window, IPetWindowHost
     public PetWindow()
     {
         InitializeComponent();
+        var defaultTheme = BubbleThemeCatalog.BuiltInThemes[0];
+        var bubbleAssetsRoot = Path.Combine(AppContext.BaseDirectory, "assets", "bubbles");
+        SetBubbleTheme(defaultTheme, Path.Combine(bubbleAssetsRoot, defaultTheme.ResourcePath));
         Loaded += (_, _) => ClampToWorkArea();
     }
 
@@ -58,7 +61,7 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         BubbleDecoration.SliceInsets = new Thickness(
             theme.SliceInsets.Left, theme.SliceInsets.Top,
             theme.SliceInsets.Right, theme.SliceInsets.Bottom);
-        BubbleDecoration.SliceScale = CalculateSliceScale(theme);
+        BubbleDecoration.LogicalSliceInsets = CalculateLogicalSliceInsets(theme);
         BubbleDecoration.Source = TryLoadBubbleImage(resourcePath);
         if (Bubble.Visibility == Visibility.Visible)
         {
@@ -463,13 +466,18 @@ public sealed partial class PetWindow : Window, IPetWindowHost
         ClampToWorkArea();
     }
 
-    private static double CalculateSliceScale(BubbleThemeDefinition theme)
+    private static Thickness CalculateLogicalSliceInsets(BubbleThemeDefinition theme)
     {
         const double horizontalPadding = 56;
         const double verticalPadding = 44;
-        return Math.Min(
+        var scale = Math.Min(
             (theme.MinContentWidth + horizontalPadding) / theme.PixelWidth,
             (theme.MinContentHeight + verticalPadding) / theme.PixelHeight);
+        return new Thickness(
+            theme.SliceInsets.Left * scale,
+            theme.SliceInsets.Top * scale,
+            theme.SliceInsets.Right * scale,
+            theme.SliceInsets.Bottom * scale);
     }
 
     private static BitmapSource? TryLoadBubbleImage(string resourcePath)
