@@ -1,0 +1,13 @@
+{
+  "id": "cloud-chibi",
+  "name": "云朵晕乎",
+  "version": "1.0.0",
+  "resourcePath": "cloud-chibi/bubble.png",
+  "previewPath": "cloud-chibi/bubble.png",
+  "pixelWidth": 2752,
+  "pixelHeight": 1536,
+  "sliceInsets": { "left": 520, "top": 250, "right": 520, "bottom": 280 },
+  "textSafeArea": { "left": 0.28, "top": 0.24, "width": 0.44, "height": 0.40 },
+  "minContentSize": { "width": 220, "height": 72 },
+  "maxContentSize": { "width": 520, "height": 240 }
+}

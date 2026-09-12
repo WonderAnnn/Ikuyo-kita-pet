@@ -1,0 +1,13 @@
+{
+  "id": "cloud-smile",
+  "name": "元气微笑",
+  "version": "1.0.0",
+  "resourcePath": "cloud-smile/bubble.png",
+  "previewPath": "cloud-smile/bubble.png",
+  "pixelWidth": 4096,
+  "pixelHeight": 4096,
+  "sliceInsets": { "left": 900, "top": 900, "right": 900, "bottom": 900 },
+  "textSafeArea": { "left": 0.30, "top": 0.25, "width": 0.48, "height": 0.44 },
+  "minContentSize": { "width": 260, "height": 96 },
+  "maxContentSize": { "width": 680, "height": 320 }
+}

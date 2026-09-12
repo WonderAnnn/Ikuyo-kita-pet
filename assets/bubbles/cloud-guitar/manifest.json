@@ -1,0 +1,13 @@
+{
+  "id": "cloud-guitar",
+  "name": "吉他现场",
+  "version": "1.0.0",
+  "resourcePath": "cloud-guitar/bubble.png",
+  "previewPath": "cloud-guitar/bubble.png",
+  "pixelWidth": 2048,
+  "pixelHeight": 2048,
+  "sliceInsets": { "left": 620, "top": 420, "right": 420, "bottom": 420 },
+  "textSafeArea": { "left": 0.42, "top": 0.25, "width": 0.45, "height": 0.42 },
+  "minContentSize": { "width": 320, "height": 88 },
+  "maxContentSize": { "width": 760, "height": 320 }
+}
