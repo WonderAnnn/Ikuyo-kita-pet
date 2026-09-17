@@ -1,0 +1,10 @@
+{
+  "character": "default",
+  "event": "click",
+  "language": "zh-CN",
+  "messages": [
+    { "id": 1, "text": "今天也一起按自己的节奏前进吧～" },
+    { "id": 2, "text": "先完成眼前的一小步，就已经很棒啦！" },
+    { "id": 3, "text": "累了就放松一下肩膀，再继续也不迟。" }
+  ]
+}
