@@ -43,12 +43,20 @@ public sealed class PetReminderPresenter(IPetWindowHost host) : IReminderPresent
         await host.ShowAsync(view, cancellationToken);
     }
 
-    public async Task ShowFeedbackAsync(ReminderAction action, CancellationToken cancellationToken)
+    public Task ShowFeedbackAsync(ReminderAction action, CancellationToken cancellationToken) =>
+        ShowFeedbackAsync(action, reminderKind: null, cancellationToken);
+
+    public async Task ShowFeedbackAsync(
+        ReminderAction action,
+        string? reminderKind,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            await host.ShowFeedbackAsync(BuildFeedback(action), cancellationToken);
+            await host.ShowFeedbackAsync(
+                BuildFeedback(action, reminderKind),
+                cancellationToken);
         }
         finally
         {
@@ -56,11 +64,23 @@ public sealed class PetReminderPresenter(IPetWindowHost host) : IReminderPresent
         }
     }
 
-    public static string BuildFeedback(ReminderAction action) => action switch
+    public static string BuildFeedback(
+        ReminderAction action,
+        string? reminderKind = null,
+        Random? random = null)
     {
-        ReminderAction.Complete => "完成啦！ദ്ദി˶>𖥦<)✧",
-        ReminderAction.Snooze => "那就稍等一下下嘛～(,,•́ . •̀,,)",
-        ReminderAction.Skip => "好吧，这次先放过自己 ʕ.•᷅ࡇ•᷄.ʔ",
-        _ => "我会等你回来哒～(,,•́ . •̀,,)",
-    };
+        if (action == ReminderAction.Complete &&
+            !string.IsNullOrWhiteSpace(reminderKind))
+        {
+            return PetReminderFeedback.PickCompletion(reminderKind, random);
+        }
+
+        return action switch
+        {
+            ReminderAction.Complete => "完成啦！ദ്ദി˶>𖥦<)✧",
+            ReminderAction.Snooze => "那就稍等一下下嘛～(,,•́ . •̀,,)",
+            ReminderAction.Skip => "好吧，这次先放过自己 ʕ.•᷅ࡇ•᷄.ʔ",
+            _ => "我会等你回来哒～(,,•́ . •̀,,)",
+        };
+    }
 }

@@ -3,43 +3,185 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel>
-            <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="设置"/>
-            <Border Margin="0,20,0,0" Padding="18" CornerRadius="16" Background="White">
+            <TextBlock Style="{StaticResource FormPageTitle}" Text="设置"/>
+            <TextBlock Margin="0,8,0,20" Style="{StaticResource FormHint}"
+                       Text="呈现方式、开机启动、白名单与数据管理都在这一页；所有数据只保存在本机。"/>
+
+            <Border Style="{StaticResource FormCard}">
                 <StackPanel>
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="提醒呈现"/>
-                    <CheckBox Margin="0,14,0,0" Content="启用透明可拖动桌宠；关闭后仅使用 Windows 通知" IsChecked="{Binding PetEnabled, Mode=TwoWay}"/>
-                    <CheckBox Margin="0,14,0,0" Content="登录 Windows 时启动 Ikuyo Pet（仅当前用户）" IsChecked="{Binding StartupEnabled, Mode=TwoWay}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="0" Style="{StaticResource FormAccentBar}"/>
+                        <TextBlock Grid.Column="1" Margin="11,0,0,0" Style="{StaticResource FormSectionTitle}" Text="提醒呈现与启动"/>
+                    </Grid>
+                    <CheckBox Margin="0,16,0,0" Style="{StaticResource FormCheckBox}" Content="启用透明可拖动桌宠；关闭后仅使用 Windows 通知" IsChecked="{Binding PetEnabled, Mode=TwoWay}"/>
+                    <CheckBox Margin="0,14,0,0" Style="{StaticResource FormCheckBox}" Content="登录 Windows 时启动 Ikuyo Pet（仅当前用户）" IsChecked="{Binding StartupEnabled, Mode=TwoWay}"/>
                     <TextBlock Margin="0,10,0,0" Foreground="#FF68778D" Text="{Binding StartupStatus}" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
-            <Border Margin="0,12,0,0" Padding="18" CornerRadius="16" Background="White">
+
+            <Border Style="{StaticResource FormCard}">
                 <StackPanel>
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="桌宠与当前皮肤"/>
-                    <TextBlock Margin="0,10,0,0" Foreground="#FF263247" Text="{Binding CurrentSkinText}"/>
-                    <TextBlock Margin="0,6,0,0" Foreground="#FF68778D" Text="皮肤包使用透明 PNG，并按原始比例缩放；加载失败时自动回退占位图，不会停止提醒。" TextWrapping="Wrap"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="0" Style="{StaticResource FormAccentBar}"/>
+                        <TextBlock Grid.Column="1" Margin="11,0,0,0" Style="{StaticResource FormSectionTitle}" Text="桌宠与当前皮肤"/>
+                        <Border Grid.Column="2" Style="{StaticResource FormTagPill}" HorizontalAlignment="Left">
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="#FF9B5473" Text="{Binding CurrentSkinText}"/>
+                        </Border>
+                    </Grid>
+                    <TextBlock Margin="0,14,0,0" Style="{StaticResource FormHint}"
+                               Text="皮肤包使用透明 PNG，并按原始比例缩放；加载失败时自动回退占位图，不会停止提醒。"/>
                 </StackPanel>
             </Border>
-            <Border Margin="0,12,0,0" Padding="18" CornerRadius="16" Background="White">
+
+            <Border Style="{StaticResource FormCard}">
                 <StackPanel>
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="当前活动规则"/>
-                    <TextBlock Margin="0,10,0,0" Foreground="#FF68778D" Text="{Binding RuleSummaryText}" TextWrapping="Wrap"/>
-                    <TextBlock Margin="0,6,0,0" Foreground="#FF9AA6B8" Text="医生后续建议可以调整规则数值；软件默认值不是诊断或治疗建议。" TextWrapping="Wrap"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="0" Style="{StaticResource FormAccentBar}"/>
+                        <TextBlock Grid.Column="1" Margin="11,0,0,0" Style="{StaticResource FormSectionTitle}" Text="当前活动规则"/>
+                    </Grid>
+                    <TextBlock Margin="0,14,0,0" Foreground="{StaticResource InkSecondaryBrush}" Text="{Binding RuleSummaryText}" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,8,0,0" Style="{StaticResource FormHint}"
+                               Text="调整间隔、时段和时长请前往“提醒规则”页；软件默认值不是诊断或治疗建议。"/>
                 </StackPanel>
             </Border>
-            <Border Margin="0,12,0,0" Padding="18" CornerRadius="16" Background="White">
+
+            <Border Style="{StaticResource FormCard}">
                 <StackPanel>
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="有效工作统计白名单"/>
-                    <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
-                        <TextBox Width="150" Margin="0,0,8,0" Text="{Binding NewProcessName, UpdateSourceTrigger=PropertyChanged}" ToolTip="进程名，例如 pycharm64"/>
-                        <TextBox Width="150" Margin="0,0,8,0" Text="{Binding NewDisplayName, UpdateSourceTrigger=PropertyChanged}" ToolTip="显示名，例如 PyCharm"/>
-                        <Button Content="添加" Command="{Binding AddTrackedApplicationCommand}" Padding="12,4"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="0" Style="{StaticResource FormAccentBar}"/>
+                        <TextBlock Grid.Column="1" Margin="11,0,0,0" Style="{StaticResource FormSectionTitle}" Text="有效工作统计白名单"/>
+                    </Grid>
+                    <TextBlock Margin="0,14,0,0" Style="{StaticResource FormHint}"
+                               Text="只有前台进程名称命中白名单时才会累计有效工作；显示名只用于日志和统计展示。"/>
+                    <Grid Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FormLabel}" Text="进程名（用于匹配）"/>
+                            <TextBlock Margin="0,0,0,7" Style="{StaticResource FormHint}" Text="系统进程名，不含 .exe，例如 WINWORD、pycharm64"/>
+                            <TextBox Style="{StaticResource FormTextBox}" Text="{Binding NewProcessName, UpdateSourceTrigger=PropertyChanged}" ToolTip="从下方运行进程列表选择最稳妥，也可以手动填写。"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource FormLabel}" Text="显示名（仅用于日志）"/>
+                            <TextBlock Margin="0,0,0,7" Style="{StaticResource FormHint}" Text="你在日志中看到的名称，例如 Microsoft Word、PyCharm"/>
+                            <TextBox Style="{StaticResource FormTextBox}" Text="{Binding NewDisplayName, UpdateSourceTrigger=PropertyChanged}" ToolTip="不会参与进程匹配，只影响日志和统计的显示。"/>
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
+                        <Button Content="添加到白名单" Command="{Binding AddTrackedApplicationCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0"/>
+                        <Button Content="刷新当前运行进程" Command="{Binding RefreshRunningProcessesCommand}" Style="{StaticResource GhostButton}" Margin="0,0,10,0"/>
+                        <Button Content="测试计时（5 秒）" Command="{Binding TestProcessTrackingCommand}" Style="{StaticResource GhostButton}" Margin="0"/>
                     </StackPanel>
-                    <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding TrackedApplications}"><ItemsControl.ItemTemplate><DataTemplate><StackPanel Orientation="Horizontal"><TextBlock Margin="0,2" Foreground="#FF68778D" Text="{Binding DisplayName}"/><TextBlock Margin="0,2" Foreground="#FF9AA8B8" Text="  ("/><TextBlock Margin="0,2" Foreground="#FF9AA8B8" Text="{Binding ProcessName}"/><TextBlock Margin="0,2" Foreground="#FF9AA8B8" Text=")"/></StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
-                    <TextBlock Margin="0,10,0,0" Foreground="#FF68778D" Text="仅当前台命中白名单、电脑未锁屏且近 5 分钟有人机操作时累计；后台、离开电脑和睡眠时间均不计入。" TextWrapping="Wrap"/>
+                    <Border Margin="0,18,0,0" Padding="16,14" CornerRadius="13" Background="#FFFEF7FA" BorderBrush="#FFF6DFEA" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Foreground="#FF9B5473" Text="当前正在运行的进程"/>
+                            <TextBlock Margin="0,5,0,12" Style="{StaticResource FormHint}" Text="从列表选择可避免手动填写错误；这里只读取进程名和 PID，不读取窗口标题或内容。"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" Height="40"
+                                          AutomationProperties.Name="当前正在运行的进程"
+                                          IsTextSearchEnabled="True" TextSearch.TextPath="ProcessName"
+                                          ItemsSource="{Binding RunningProcesses}"
+                                          SelectedItem="{Binding SelectedRunningProcess, Mode=TwoWay}"
+                                          Style="{StaticResource LogComboBoxStyle}"
+                                          ToolTip="刷新后选择你正在使用的应用。">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Grid.Column="2" Content="填入上方输入框"
+                                        Command="{Binding UseSelectedProcessCommand}"
+                                        Style="{StaticResource GhostButton}"
+                                        Height="40" Margin="0" VerticalAlignment="Center" Padding="14,0"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Margin="0,12,0,0" Foreground="#FFB14D7C" Text="{Binding ProcessTestStatus}" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,8,0,0" Style="{StaticResource FormHint}"
+                               Text="计时测试会检查：目标进程正在运行、位于前台、电脑未锁屏、不在全屏/演示模式，并且最近 5 分钟有键盘或鼠标操作。后台运行、切到其他应用、锁屏、睡眠和超过 5 分钟无操作的时间均不计入。"/>
+                    <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding TrackedApplications}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,8,8" Padding="10,5" CornerRadius="14" Background="{StaticResource AccentSoftBrush}" HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Foreground="#FF9B5473" FontWeight="SemiBold" Text="{Binding DisplayName}"/>
+                                        <TextBlock Margin="6,0,0,0" Foreground="#FFC99BB4" Text="{Binding ProcessName}"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
-            <TextBlock Margin="0,12,0,4" Foreground="#FF68778D" Text="{Binding SettingsStatus}" TextWrapping="Wrap"/>
-            <TextBlock Margin="0,4,0,12" Foreground="#FF9AA6B8" Text="{Binding VersionText}"/>
+
+            <Border Style="{StaticResource FormCard}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="0" Style="{StaticResource FormAccentBar}"/>
+                        <TextBlock Grid.Column="1" Margin="11,0,0,0" Style="{StaticResource FormSectionTitle}" Text="数据备份与恢复"/>
+                    </Grid>
+                    <TextBlock Margin="0,14,0,0" Foreground="{StaticResource InkSecondaryBrush}" Text="{Binding DataStatusText}" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,12,0,0" Style="{StaticResource FormLabel}" Text="备份目录（每天首次启动自动写入一份，保留最近若干份）"/>
+                    <TextBlock Foreground="{StaticResource InkBrush}" Text="{Binding BackupDirectoryText}" TextWrapping="Wrap"/>
+                    <WrapPanel Margin="0,16,0,0">
+                        <Button Content="立即备份…" Command="{Binding BackupNowCommand}" Style="{StaticResource GhostButton}" Margin="0,0,10,0"/>
+                        <Button Content="恢复备份…" Command="{Binding RestoreBackupCommand}" Style="{StaticResource GhostButton}" Margin="0,0,10,0"/>
+                        <Button Content="导出全部数据 (JSON)…" Command="{Binding ExportDataCommand}" Style="{StaticResource GhostButton}" Margin="0,0,10,0"/>
+                        <Button Content="打开备份文件夹" Command="{Binding OpenBackupFolderCommand}" Style="{StaticResource GhostButton}" Margin="0"/>
+                    </WrapPanel>
+                    <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Style="{StaticResource FormLabel}" Margin="0" Text="自动备份保留份数"/>
+                        <TextBox Width="88" Margin="12,0,0,0" Style="{StaticResource FormTextBox}" Text="{Binding BackupRetentionText}" ToolTip="每天最多保留多少份自动备份，范围 1–365。"/>
+                    </StackPanel>
+                    <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding RecentBackupNames}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Margin="0,2" Foreground="#FF8793A6" FontSize="12" Text="{Binding}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Margin="0,12,0,0" Style="{StaticResource FormHint}"
+                               Text="恢复会覆盖当前全部本地数据，恢复前会自动保留一份安全副本，完成后应用会重启。导出的 JSON 是全部表的完整记录，可作为长期存档。"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Margin="0,4,0,4" Foreground="#FF68778D" Text="{Binding SettingsStatus}" TextWrapping="Wrap"/>
+            <TextBlock Margin="0,4,0,16" Foreground="#FF9AA6B8" Text="{Binding VersionText}"/>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

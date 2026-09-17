@@ -42,6 +42,10 @@ public interface IEventRepository
 
     Task UpsertReminderRuleAsync(ReminderRule rule, CancellationToken cancellationToken);
 
+    Task UpsertReminderRulesAsync(
+        IReadOnlyList<ReminderRule> rules,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
     Task<bool> TryAddDefaultReminderRuleAsync(
         ReminderRule rule,
         CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -8,7 +8,8 @@ namespace IkuyoPet.Infrastructure.Storage;
 
 public sealed class SqliteEventRepository(
     string connectionString,
-    TimeZoneInfo? timeZone = null) : IEventRepository
+    TimeZoneInfo? timeZone = null,
+    Func<int, ReminderRule, Exception?>? batchFailureInjector = null) : IEventRepository
 {
     public async Task AppendReminderAsync(
         ReminderEvent item,
@@ -290,6 +291,74 @@ public sealed class SqliteEventRepository(
         AddText(command, "$created_at", now);
         AddText(command, "$updated_at", now);
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpsertReminderRulesAsync(
+        IReadOnlyList<ReminderRule> rules,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        if (rules.Count == 0) return;
+        if (rules.Any(rule => rule is null)) throw new ArgumentException("Rules cannot contain null.", nameof(rules));
+        await new DatabaseMigrator(connectionString).MigrateAsync(cancellationToken);
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ConfigureConnectionAsync(connection, cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        var now = ToDbTimestamp(DateTimeOffset.UtcNow);
+        for (var index = 0; index < rules.Count; index++)
+        {
+            var rule = rules[index];
+            var injected = batchFailureInjector?.Invoke(index, rule);
+            if (injected is not null) throw injected;
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO reminder_rules
+                    (id, name, kind, enabled, start_local, end_local, interval_minutes,
+                     interval_min_minutes, interval_max_minutes, activity_duration_minutes,
+                     parameter_source, parameter_version, daily_goal, quiet_start, quiet_end,
+                     quiet_enabled, max_retries, created_at, updated_at)
+                VALUES
+                    ($id, $name, $kind, $enabled, $start_local, $end_local, $interval_minutes,
+                     $interval_min_minutes, $interval_max_minutes, $activity_duration_minutes,
+                     $parameter_source, $parameter_version, $daily_goal, $quiet_start, $quiet_end,
+                     $quiet_enabled, $max_retries, $created_at, $updated_at)
+                ON CONFLICT(id) DO UPDATE SET
+                    name=excluded.name, kind=excluded.kind, enabled=excluded.enabled,
+                    start_local=excluded.start_local, end_local=excluded.end_local,
+                    interval_minutes=excluded.interval_minutes,
+                    interval_min_minutes=excluded.interval_min_minutes,
+                    interval_max_minutes=excluded.interval_max_minutes,
+                    activity_duration_minutes=excluded.activity_duration_minutes,
+                    parameter_source=excluded.parameter_source,
+                    parameter_version=excluded.parameter_version,
+                    daily_goal=excluded.daily_goal, quiet_start=excluded.quiet_start,
+                    quiet_end=excluded.quiet_end, quiet_enabled=excluded.quiet_enabled,
+                    updated_at=excluded.updated_at;
+                """;
+            AddText(command, "$id", rule.Id.ToString("N"));
+            AddText(command, "$name", rule.Message);
+            AddText(command, "$kind", rule.Kind);
+            command.Parameters.AddWithValue("$enabled", rule.Enabled ? 1 : 0);
+            AddText(command, "$start_local", ToDbLocalTime(rule.StartLocal));
+            AddText(command, "$end_local", ToDbLocalTime(rule.EndLocal));
+            command.Parameters.AddWithValue("$interval_minutes", rule.IntervalMinutes);
+            command.Parameters.AddWithValue("$interval_min_minutes", rule.IntervalMinMinutes);
+            command.Parameters.AddWithValue("$interval_max_minutes", rule.IntervalMaxMinutes);
+            command.Parameters.AddWithValue("$activity_duration_minutes", rule.ActivityDurationMinutes);
+            AddText(command, "$parameter_source", rule.ParameterSource);
+            AddText(command, "$parameter_version", rule.ParameterVersion);
+            command.Parameters.AddWithValue("$daily_goal", rule.DailyGoal);
+            AddText(command, "$quiet_start", ToDbLocalTime(rule.QuietHours.StartLocalTime));
+            AddText(command, "$quiet_end", ToDbLocalTime(rule.QuietHours.EndLocalTime));
+            command.Parameters.AddWithValue("$quiet_enabled", rule.QuietHours.Enabled ? 1 : 0);
+            command.Parameters.AddWithValue("$max_retries", 3);
+            AddText(command, "$created_at", now);
+            AddText(command, "$updated_at", now);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<bool> TryAddDefaultReminderRuleAsync(

@@ -55,7 +55,7 @@ public sealed class LogFilterStyleContractTests
     {
         var view = Read("src/IkuyoPet.App/Views/LogView.xaml");
 
-        Assert.Contains("StatisticsPeriodIndex", view);
+        Assert.Contains("SelectStatisticsPeriodCommand", view);
         Assert.Contains("WorkStatisticsTotalText", view);
         Assert.Contains("TopApplicationStats", view);
         Assert.Contains("ProgressBar", view);
@@ -87,7 +87,45 @@ public sealed class LogFilterStyleContractTests
         Assert.True(int.TryParse(timelineRow, out var row));
         Assert.InRange(row, 0, rowCount - 1);
     }
+    [Fact]
+    public void LogViewExposesAStylePdfExport()
+    {
+        var view = Read("src/IkuyoPet.App/Views/LogView.xaml");
+        var viewModel = Read("src/IkuyoPet.App/MainWindowViewModel.cs");
 
+        Assert.Contains("ExportPdfCommand", view);
+        Assert.Contains("PdfExportStatus", view);
+        Assert.Contains("PdfExportRequested", viewModel);
+        Assert.Contains("PdfLogExportSnapshot", viewModel);
+    }
+    [Fact]
+    public void LogFilterBarKeepsFiltersLeftAndExportRightOnOneControlRow()
+    {
+        var view = Read("src/IkuyoPet.App/Views/LogView.xaml");
+
+        Assert.Contains("<StackPanel Grid.Row=\"0\" Grid.Column=\"0\" Orientation=\"Horizontal\"", view, StringComparison.Ordinal);
+        Assert.Contains("Grid.Row=\"0\" Grid.Column=\"1\"", view, StringComparison.Ordinal);
+        Assert.Contains("HorizontalAlignment=\"Right\"", view, StringComparison.Ordinal);
+        Assert.Equal(4, view.Split("Height=\"32\"", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void LogFilterBarKeepsThreeFiltersOnFirstRow()
+    {
+        var view = Read("src/IkuyoPet.App/Views/LogView.xaml");
+
+        Assert.Contains("<RowDefinition Height=\"Auto\"/><RowDefinition Height=\"Auto\"/>", view);
+        Assert.Contains("<StackPanel Grid.Row=\"0\" Grid.Column=\"0\" Orientation=\"Horizontal\"", view);
+        Assert.Contains("<StackPanel Grid.Row=\"1\" Grid.Column=\"0\" Grid.ColumnSpan=\"2\" Orientation=\"Horizontal\"", view);
+    }
+    [Fact]
+    public void LogFilterControlsPinToTheSameTopAlignment()
+    {
+        var view = Read("src/IkuyoPet.App/Views/LogView.xaml");
+
+        Assert.Contains("<DatePicker Height=\"32\" VerticalAlignment=\"Top\"", view);
+        Assert.Equal(2, view.Split("<ComboBox Height=\"32\" VerticalAlignment=\"Top\"", StringSplitOptions.None).Length - 1);
+    }
     [Fact]
     public void LogFilterStylesSuppressSystemBlueSelection()
     {
@@ -108,6 +146,20 @@ public sealed class LogFilterStyleContractTests
     }
 
     [Fact]
+    public void SettingsViewExplainsProcessFieldsAndOffersLiveDiagnostics()
+    {
+        var settings = Read("src/IkuyoPet.App/Views/SettingsView.xaml");
+
+        Assert.Contains("进程名（用于匹配）", settings);
+        Assert.Contains("显示名（仅用于日志）", settings);
+        Assert.Contains("RunningProcesses", settings);
+        Assert.Contains("RefreshRunningProcessesCommand", settings);
+        Assert.Contains("UseSelectedProcessCommand", settings);
+        Assert.Contains("TestProcessTrackingCommand", settings);
+        Assert.Contains("ProcessTestStatus", settings);
+        Assert.Contains("不读取窗口标题或内容", settings);
+    }
+    [Fact]
     public void MainAndSettingsViewsExposeDurationAndVersionBindings()
     {
         var today = Read("src/IkuyoPet.App/Views/TodayView.xaml");
@@ -121,6 +173,14 @@ public sealed class LogFilterStyleContractTests
         Assert.Contains("WorkStatisticsRangeText", log);
         Assert.Contains("VersionText", settings);
         Assert.Contains("FocusVisualStyle", app);
-        Assert.Contains("<Version>0.1.1</Version>", project);
+        Assert.Contains("<Version>0.1.4</Version>", project);
+    }
+    [Fact]
+    public void PetBubbleIsAboveDraggableHitArea()
+    {
+        var pet = Read("src/IkuyoPet.Pet/PetWindow.xaml");
+
+        Assert.Contains("Panel.ZIndex=\"10\"", pet);
+        Assert.Contains("Panel.ZIndex=\"0\"", pet);
     }
 }

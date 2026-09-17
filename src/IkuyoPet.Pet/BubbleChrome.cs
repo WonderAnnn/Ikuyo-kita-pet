@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -8,7 +9,7 @@ namespace IkuyoPet.Pet;
 
 public sealed record BubbleSlice(Rect Source, Rect Destination);
 
-public sealed class BubbleChrome : FrameworkElement
+public sealed class BubbleChrome : Decorator
 {
     public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(
         nameof(Source), typeof(BitmapSource), typeof(BubbleChrome),
@@ -16,11 +17,28 @@ public sealed class BubbleChrome : FrameworkElement
 
     private Thickness sliceInsets;
     private Thickness logicalSliceInsets;
+    private Size decorationViewportSize = new(276, 116);
+    private Thickness interiorInsets = new(80, 32, 40, 28);
+    private Rect textBounds = new(18, 14, 320, 88);
+
+    public BubbleChrome()
+    {
+        ClipToBounds = true;
+    }
 
     public BitmapSource? Source
     {
         get => (BitmapSource?)GetValue(SourceProperty);
         set => SetValue(SourceProperty, value);
+    }
+
+    public void ApplyRender(BubbleRenderModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        Source = model.Source;
+        Width = model.LogicalSize.Width;
+        Height = model.LogicalSize.Height;
+        TextBounds = model.TextBounds;
     }
 
     public Thickness SliceInsets
@@ -45,6 +63,43 @@ public sealed class BubbleChrome : FrameworkElement
         }
     }
 
+    public Size DecorationViewportSize
+    {
+        get => decorationViewportSize;
+        set
+        {
+            ValidateSize(value, nameof(value));
+            decorationViewportSize = value;
+            InvalidateVisual();
+        }
+    }
+
+    public Thickness InteriorInsets
+    {
+        get => interiorInsets;
+        set
+        {
+            ValidateInsets(value, nameof(value));
+            interiorInsets = value;
+            InvalidateVisual();
+        }
+    }
+
+    public Rect TextBounds
+    {
+        get => textBounds;
+        set
+        {
+            if (!double.IsFinite(value.X) || !double.IsFinite(value.Y) ||
+                !double.IsFinite(value.Width) || !double.IsFinite(value.Height) ||
+                value.X < 0 || value.Y < 0 || value.Width <= 0 || value.Height <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value));
+            textBounds = value;
+            InvalidateMeasure();
+            InvalidateArrange();
+        }
+    }
+
     public static IReadOnlyList<BubbleSlice> CreateSlices(
         Size sourceSize, Thickness sliceInsets, Size destinationSize) =>
         CreateSlices(sourceSize, sliceInsets, sliceInsets, destinationSize);
@@ -52,34 +107,71 @@ public sealed class BubbleChrome : FrameworkElement
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
-        if (Source is null)
-        {
-            drawingContext.DrawRoundedRectangle(
-                Brushes.White,
-                new Pen(new SolidColorBrush(Color.FromRgb(231, 221, 246)), 1),
-                new Rect(RenderSize), 18, 18);
-            return;
-        }
+        if (Source is null) return;
+        drawingContext.DrawImage(Source, new Rect(RenderSize));
+    }
 
-        var sourceInsets = ClampInsets(SliceInsets, new Size(Source.PixelWidth, Source.PixelHeight));
-        var destinationInsets = LogicalSliceInsets;
+    protected override Size MeasureOverride(Size constraint)
+    {
+        Child?.Measure(TextBounds.Size);
+        return new Size(
+            Math.Max(TextBounds.Right, Child?.DesiredSize.Width ?? 0),
+            Math.Max(TextBounds.Bottom, Child?.DesiredSize.Height ?? 0));
+    }
 
-        var slices = CreateSlices(
-            new Size(Source.PixelWidth, Source.PixelHeight), sourceInsets,
-            destinationInsets, RenderSize);
-        drawingContext.DrawRectangle(Brushes.White, null, slices[4].Destination);
+    protected override Size ArrangeOverride(Size arrangeSize)
+    {
+        Child?.Arrange(TextBounds);
+        return arrangeSize;
+    }
 
-        foreach (var slice in slices)
-        {
-            if (slice.Source.Width <= 0 || slice.Source.Height <= 0 ||
-                slice.Destination.Width <= 0 || slice.Destination.Height <= 0)
-                continue;
-            var crop = new CroppedBitmap(Source, new Int32Rect(
-                (int)Math.Round(slice.Source.X), (int)Math.Round(slice.Source.Y),
-                (int)Math.Round(slice.Source.Width), (int)Math.Round(slice.Source.Height)));
-            crop.Freeze();
-            drawingContext.DrawImage(crop, slice.Destination);
-        }
+    public static Rect CalculateDecorationBounds(
+        Size sourceSize,
+        Size destinationSize,
+        Size decorationViewportSize)
+    {
+        ValidateSize(sourceSize, nameof(sourceSize));
+        ValidateSize(destinationSize, nameof(destinationSize));
+        ValidateSize(decorationViewportSize, nameof(decorationViewportSize));
+        var scale = Math.Min(
+            decorationViewportSize.Width / sourceSize.Width,
+            decorationViewportSize.Height / sourceSize.Height);
+        var width = sourceSize.Width * scale;
+        var height = sourceSize.Height * scale;
+        return new Rect(0, (destinationSize.Height - height) / 2, width, height);
+    }
+
+    public static Size CalculateDecorationViewport(
+        Size sourceSize,
+        Size baselineBubbleSize,
+        double textOrigin,
+        double interiorOverlap)
+    {
+        ValidateSize(sourceSize, nameof(sourceSize));
+        ValidateSize(baselineBubbleSize, nameof(baselineBubbleSize));
+        if (!double.IsFinite(textOrigin) || textOrigin < 0)
+            throw new ArgumentOutOfRangeException(nameof(textOrigin));
+        if (!double.IsFinite(interiorOverlap) || interiorOverlap < 0)
+            throw new ArgumentOutOfRangeException(nameof(interiorOverlap));
+
+        var baselineScale = Math.Min(
+            baselineBubbleSize.Width / sourceSize.Width,
+            baselineBubbleSize.Height / sourceSize.Height);
+        var overlapScale = (textOrigin + interiorOverlap) / sourceSize.Width;
+        var scale = Math.Max(baselineScale, overlapScale);
+        return new Size(sourceSize.Width * scale, sourceSize.Height * scale);
+    }
+
+    public static Rect CalculateInteriorBounds(Size destinationSize, Thickness insets)
+    {
+        ValidateSize(destinationSize, nameof(destinationSize));
+        ValidateInsets(insets, nameof(insets));
+        var clamped = ClampInsets(insets, destinationSize);
+        return new Rect(
+            clamped.Left,
+            clamped.Top,
+            Math.Max(0, destinationSize.Width - clamped.Left - clamped.Right),
+            Math.Max(0, destinationSize.Height - clamped.Top - clamped.Bottom));
     }
 
     public static IReadOnlyList<BubbleSlice> CreateSlices(
@@ -130,4 +222,5 @@ public sealed class BubbleChrome : FrameworkElement
         if (!double.IsFinite(size.Width) || !double.IsFinite(size.Height) || size.Width <= 0 || size.Height <= 0)
             throw new ArgumentOutOfRangeException(parameterName);
     }
+
 }

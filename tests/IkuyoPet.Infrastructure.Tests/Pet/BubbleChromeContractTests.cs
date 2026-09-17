@@ -1,5 +1,7 @@
 using System.IO;
 using System.Windows;
+using System.Xml.Linq;
+using IkuyoPet.Core.Bubbles;
 using IkuyoPet.Infrastructure.Tests.TestSupport;
 using IkuyoPet.Pet;
 using Xunit;
@@ -47,16 +49,74 @@ public sealed class BubbleChromeContractTests
         Assert.Equal(compact[3].Destination.Width, expanded[3].Destination.Width);
         Assert.NotEqual(compact[3].Destination.Height, expanded[3].Destination.Height);
     }
+
+    [Fact]
+    public void DecorationLayerPreservesAspectRatioAndStaysLeftAnchoredWhenBackgroundGrows()
+    {
+        var compact = BubbleChrome.CalculateDecorationBounds(
+            new Size(2048, 2048), new Size(376, 132), new Size(376, 132));
+        var expanded = BubbleChrome.CalculateDecorationBounds(
+            new Size(2048, 2048), new Size(816, 364), new Size(376, 132));
+
+        Assert.Equal(1, compact.Width / compact.Height, precision: 6);
+        Assert.Equal(1, expanded.Width / expanded.Height, precision: 6);
+        Assert.Equal(compact.Size, expanded.Size);
+        Assert.Equal(0, expanded.Left);
+    }
+
+    [Fact]
+    public void InteriorExtensionKeepsItsThemeInsetsAndAddsNoOuterWhiteFrame()
+    {
+        var insets = new Thickness(120, 38, 42, 36);
+        var compact = BubbleChrome.CalculateInteriorBounds(new Size(376, 132), insets);
+        var expanded = BubbleChrome.CalculateInteriorBounds(new Size(816, 364), insets);
+
+        Assert.Equal(compact.Left, expanded.Left);
+        Assert.Equal(compact.Top, expanded.Top);
+        Assert.Equal(440, expanded.Width - compact.Width);
+        Assert.Equal(232, expanded.Height - compact.Height);
+    }
+
+    [Fact]
+    public void GuitarDecorationReachesPastTheTextAreaOriginWithoutChangingAspectRatio()
+    {
+        const double outerLeftPadding = 28;
+        const double interiorOverlap = 24;
+        var theme = BubbleThemeCatalog.BuiltInThemes[1];
+        var layout = BubbleLayoutCalculator.Calculate(theme, "短句");
+        var sourceSize = new Size(theme.PixelWidth, theme.PixelHeight);
+        var bubbleSize = new Size(layout.WindowWidth, layout.WindowHeight);
+        var textOrigin = outerLeftPadding + layout.TextArea.Left;
+        var viewport = BubbleChrome.CalculateDecorationViewport(
+            sourceSize, bubbleSize, textOrigin, interiorOverlap);
+        var decoration = BubbleChrome.CalculateDecorationBounds(sourceSize, bubbleSize, viewport);
+
+        Assert.True(decoration.Right >= textOrigin + interiorOverlap);
+        Assert.Equal(sourceSize.Width / sourceSize.Height, decoration.Width / decoration.Height, precision: 6);
+    }
     [Fact]
     public void PetWindowUsesOneDecorativeChromeWithTextAboveIt()
     {
-        var xaml = File.ReadAllText(Path.Combine(
-            RepositoryPaths.Root, "src", "IkuyoPet.Pet", "PetWindow.xaml"));
+        var path = Path.Combine(RepositoryPaths.Root, "src", "IkuyoPet.Pet", "PetWindow.xaml");
+        var xaml = File.ReadAllText(path);
+        var document = XDocument.Load(path);
+        var bubbleRoot = document.Descendants().Single(element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "BubbleRoot"));
+        var reminderText = document.Descendants().Single(element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "ReminderText"));
+        var reminderScroll = document.Descendants().Single(element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "ReminderScroll"));
 
         Assert.Contains("local:BubbleChrome", xaml);
+        Assert.Equal("BubbleChrome", bubbleRoot.Name.LocalName);
+        Assert.Same(bubbleRoot, reminderScroll.Parent);
+        Assert.Same(reminderScroll, reminderText.Parent);
+        Assert.Equal("ScrollViewer", reminderScroll.Name.LocalName);
         Assert.Contains("Panel.ZIndex=\"20\"", xaml);
         Assert.Contains("TextAlignment=\"Left\"", xaml);
-        Assert.Contains("VerticalAlignment=\"Center\"", xaml);
+        Assert.Contains("VerticalAlignment=\"Top\"", xaml);
+        Assert.Contains("ClipToBounds=\"True\"", xaml);
+        Assert.DoesNotContain("x:Name=\"BubbleDecoration\"", xaml);
         Assert.DoesNotContain("BubbleArrow", xaml);
         Assert.DoesNotContain("CornerRadius=", xaml);
     }
@@ -68,11 +128,27 @@ public sealed class BubbleChromeContractTests
             RepositoryPaths.Root, "src", "IkuyoPet.Pet", "PetWindow.xaml.cs"));
 
         Assert.Contains("public void SetBubbleTheme(BubbleThemeDefinition theme, string resourcePath)", source);
-        Assert.Contains("BubbleLayoutCalculator.Calculate", source);
+        Assert.Contains("BubbleRenderer.Create", source);
+        Assert.Contains("BubbleRoot.ApplyRender", source);
         Assert.Contains("ApplyBubbleLayout(text", source);
         Assert.Contains("ApplyBubbleLayout(view.Text", source);
+        Assert.DoesNotContain("Canvas.SetLeft(ReminderText", source);
+        Assert.DoesNotContain("Canvas.SetTop(ReminderText", source);
         Assert.Contains("BubbleThemeCatalog.BuiltInThemes[0]", source);
         Assert.Contains("Path.Combine(AppContext.BaseDirectory, \"assets\", \"bubbles\")", source);
+    }
+    [Fact]
+    public void PreviewAndPetWindowUseTheSameRendererAndChromeEntryPoint()
+    {
+        var preview = File.ReadAllText(Path.Combine(
+            RepositoryPaths.Root, "src", "IkuyoPet.Pet", "BubbleThemePreview.cs"));
+        var window = File.ReadAllText(Path.Combine(
+            RepositoryPaths.Root, "src", "IkuyoPet.Pet", "PetWindow.xaml.cs"));
+
+        Assert.Contains("BubbleRenderer.Create", preview);
+        Assert.Contains("chrome.ApplyRender(model)", preview);
+        Assert.Contains("BubbleRenderer.Create", window);
+        Assert.Contains("BubbleRoot.ApplyRender(render)", window);
     }
     [Fact]
     public void PublicSliceGeometryRejectsNonFiniteInputs()
@@ -84,13 +160,19 @@ public sealed class BubbleChromeContractTests
     }
 
     [Fact]
-    public void NormalThemeFillsOnlyTheExpandableCenterSlice()
+    public void CompositeThemeDrawsOneFullPngAndArrangesTextInTheSameControl()
     {
         var source = File.ReadAllText(Path.Combine(
             RepositoryPaths.Root, "src", "IkuyoPet.Pet", "BubbleChrome.cs"));
 
-        Assert.DoesNotContain("DrawRectangle(Brushes.White, null, new Rect(RenderSize))", source);
-        Assert.Contains("DrawRectangle(Brushes.White, null, slices[4].Destination)", source);
+        Assert.Contains("class BubbleChrome : Decorator", source);
+        Assert.Contains("Child?.Arrange(TextBounds)", source);
+        Assert.Contains("drawingContext.DrawImage(Source, new Rect(RenderSize))", source);
+        Assert.Contains("if (Source is null)", source);
+        Assert.DoesNotContain("DrawRoundedRectangle", source);
+        Assert.DoesNotContain("public Rect InteriorBounds", source);
+        Assert.DoesNotContain("public Rect DecorationBounds", source);
+        Assert.DoesNotContain("drawingContext.DrawImage(crop", source);
     }
 
     [Fact]
@@ -99,9 +181,20 @@ public sealed class BubbleChromeContractTests
         var project = File.ReadAllText(Path.Combine(
             RepositoryPaths.Root, "src", "IkuyoPet.Pet", "IkuyoPet.Pet.csproj"));
 
-        Assert.Contains(@"assets\bubbles\**\bubble.png", project);
+        Assert.Contains(@"assets\bubbles\**\bubble-filled.png", project);
         Assert.Contains(@"assets\bubbles\%(RecursiveDir)%(Filename)%(Extension)", project);
         Assert.Contains("CopyToOutputDirectory=\"PreserveNewest\"", project);
         Assert.Contains("CopyToPublishDirectory=\"PreserveNewest\"", project);
+    }
+
+    [Fact]
+    public void PetWindowAppliesInteriorDecorationAndTextBoundsFromOneLayout()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            RepositoryPaths.Root, "src", "IkuyoPet.Pet", "PetWindow.xaml.cs"));
+
+        Assert.Contains("BubbleRoot.TextBounds =", source);
+        Assert.DoesNotContain("BubbleRoot.InteriorBounds =", source);
+        Assert.DoesNotContain("BubbleRoot.DecorationBounds =", source);
     }
 }

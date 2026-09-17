@@ -86,24 +86,37 @@ public sealed class WindowsAppNotificationSink : INotificationSink, IDisposable
             return Task.CompletedTask;
         }
 
-        EnsureRegistered();
-
-        var builder = new AppNotificationBuilder()
-            .AddText(request.Title)
-            .AddText(request.Message);
-
-        foreach (var action in request.Actions.Distinct())
+        try
         {
-            builder.AddButton(
-                new AppNotificationButton(GetActionLabel(action))
-                    .AddArgument("eventId", request.EventId.ToString("D"))
-                    .AddArgument("action", action.ToString()));
+            EnsureRegistered();
+
+            var builder = new AppNotificationBuilder()
+                .AddText(request.Title)
+                .AddText(request.Message);
+
+            foreach (var action in request.Actions.Distinct())
+            {
+                builder.AddButton(
+                    new AppNotificationButton(GetActionLabel(action))
+                        .AddArgument("eventId", request.EventId.ToString("D"))
+                        .AddArgument("action", action.ToString()));
+            }
+
+            var notification = builder.BuildNotification();
+            notification.Tag = request.EventId.ToString("D");
+            manager.Show(notification);
+        }
+        catch (Exception exception) when (
+            exception is COMException or
+            PlatformNotSupportedException or
+            InvalidOperationException)
+        {
+            // Unpackaged Windows installs can report support but fail registration.
+            // Keep manual reminders visible through the configured tray fallback.
+            Debug.WriteLine($"Windows App SDK notification fallback: {exception.Message}");
+            unavailableFallback?.Invoke(request);
         }
 
-        var notification = builder.BuildNotification();
-        notification.SuppressDisplay = true;
-        notification.Tag = request.EventId.ToString("D");
-        manager.Show(notification);
         return Task.CompletedTask;
     }
 

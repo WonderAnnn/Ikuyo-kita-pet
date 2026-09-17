@@ -32,6 +32,7 @@ public sealed class PetReminderPresenterTests
 
         Assert.Equal(due.EventId, actionEvent.EventId);
         Assert.Equal(ReminderAction.Complete, actionEvent.Action);
+        Assert.Equal(due.Kind, actionEvent.ReminderKind);
     }
     [Theory]
     [InlineData(ReminderAction.Complete, "ദ്ദി˶>𖥦<)✧")]

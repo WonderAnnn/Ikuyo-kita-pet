@@ -22,29 +22,35 @@ if (-not $SkipRestore) {
     & $dotnet restore $project --runtime win-x64
     if ($LASTEXITCODE -ne 0) { throw 'dotnet restore failed.' }
 }
-& $dotnet publish $project --configuration Release --runtime win-x64 --self-contained true --output $output --no-restore
+& $dotnet publish $project --configuration Release --runtime win-x64 --self-contained true --output $output --no-restore -p:IncludeLocalOverrides=false
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
 
+$stalePrivateSkin = Join-Path $output 'local-skins'
+if (Test-Path -LiteralPath $stalePrivateSkin) { Remove-Item -LiteralPath $stalePrivateSkin -Recurse -Force }
+$stalePrivateInteraction = Join-Path $output 'interactions\ikuyo-click.json'
+if (Test-Path -LiteralPath $stalePrivateInteraction) { Remove-Item -LiteralPath $stalePrivateInteraction -Force }
+
 $publishedExe = Join-Path $output 'IkuyoPet.exe'
-if (-not (Test-Path -LiteralPath $publishedExe)) {
+if (-not (Test-Path -LiteralPath $publishedExe -PathType Leaf)) {
     throw "Publish output is missing IkuyoPet.exe: $output"
 }
 
-$publicInteraction = Join-Path $output 'interactions\default\click.json'
-if (-not (Test-Path -LiteralPath $publicInteraction)) {
-    throw "Publish output is missing public interaction fallback: $publicInteraction"
-}
+$publicFiles = @(
+    'interactions\default\click.json',
+    'interactions\kita-click.json',
+    'branding\icon\icon256.ico',
+    'skins\kita-original\1.0.0\manifest.json',
+    'skins\kita-original\1.0.0\idle.png',
+    'skins\kita-original\1.0.0\remind.png',
+    'assets\bubbles\kita\kita_cloud2-source.png',
+    'assets\bubbles\kita\kita_cloud3-source.png'
+)
+$missing = @($publicFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $output $_) -PathType Leaf) })
+if ($missing.Count -gt 0) { throw "Publish output is missing public resources: $($missing -join ', ')" }
 
-$privateInteractionSource = Join-Path $repoRoot 'local-assets\interactions\ikuyo-click.zh-CN.json'
-$privateInteractionOutput = Join-Path $output 'interactions\ikuyo-click.json'
-if ((Test-Path -LiteralPath $privateInteractionSource) -and
-    -not (Test-Path -LiteralPath $privateInteractionOutput)) {
-    throw "Private interaction source exists but publish output is missing: $privateInteractionOutput"
-}
-
-$privateSkin = Join-Path $repoRoot 'local-skins'
-if (Test-Path -LiteralPath $privateSkin) {
-    Copy-Item -LiteralPath $privateSkin -Destination (Join-Path $output 'local-skins') -Recurse -Force
+if ((Test-Path -LiteralPath (Join-Path $output 'local-skins')) -or
+    (Test-Path -LiteralPath (Join-Path $output 'interactions\ikuyo-click.json'))) {
+    throw 'Publish output contains private local overrides.'
 }
 
 & (Join-Path $PSScriptRoot 'verify-dev.ps1') -PublishRoot $output | Out-Host

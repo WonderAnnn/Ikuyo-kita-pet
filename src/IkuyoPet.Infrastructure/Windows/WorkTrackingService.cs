@@ -1,3 +1,4 @@
+using System.Globalization;
 using IkuyoPet.Core.Storage;
 using IkuyoPet.Core.WorkTracking;
 
@@ -33,11 +34,14 @@ public sealed class WorkTrackingService
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_maxSampleGap, TimeSpan.Zero);
     }
 
+    public ActivitySample? LastSample => _previous;
+
     public async Task<ActiveWorkDelta> SampleOnceAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var current = _probe.Capture();
         var activeSeconds = 0;
+        LogSample(current, 0);
 
         if (_previous is { } previous && IsValidInterval(previous, current))
         {
@@ -50,6 +54,7 @@ public sealed class WorkTrackingService
             var elapsed = current.ObservedAt - previous.ObservedAt;
             activeSeconds = (int)Math.Floor(elapsed.TotalSeconds);
             _activeSeconds = checked(_activeSeconds + activeSeconds);
+            LogSample(current, activeSeconds);
 
             if (!string.Equals(previous.AppName, current.AppName, StringComparison.OrdinalIgnoreCase))
             {
@@ -134,6 +139,34 @@ public sealed class WorkTrackingService
         }
 
         return "invalid-sample";
+    }
+
+    /// <summary>
+    /// Optional per-sample diagnostics: set IKUYO_PET_SAMPLE_LOG=1 before launch to
+    /// record every foreground sample under %LOCALAPPDATA%/IkuyoPet/debug-samples.log.
+    /// </summary>
+    private void LogSample(ActivitySample sample, int activeSeconds)
+    {
+        if (Environment.GetEnvironmentVariable("IKUYO_PET_SAMPLE_LOG") != "1") return;
+        try
+        {
+            var line = string.Create(CultureInfo.InvariantCulture,
+                $"{sample.ObservedAt:O} | app={sample.AppName} | wl={sample.IsWhitelistedForeground} | locked={sample.IsLocked} | fs={sample.IsFullScreen} | pres={sample.IsPresentationMode} | idleS={(int)sample.IdleTime.TotalSeconds} | deltaS={activeSeconds} | sessionS={_activeSeconds}");
+            File.AppendAllText(
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "IkuyoPet",
+                    "debug-samples.log"),
+                line + Environment.NewLine);
+        }
+        catch (IOException)
+        {
+            // Diagnostics must never break sampling.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Diagnostics must never break sampling.
+        }
     }
 
     private async Task FlushAsync(

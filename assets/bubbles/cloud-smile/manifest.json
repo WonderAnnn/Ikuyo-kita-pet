@@ -1,9 +1,9 @@
 {
   "id": "cloud-smile",
-  "name": "元气微笑",
+  "name": "吉他现场",
   "version": "1.0.0",
-  "resourcePath": "cloud-smile/bubble.png",
-  "previewPath": "cloud-smile/bubble.png",
+  "resourcePath": "cloud-smile/bubble-filled.png",
+  "previewPath": "cloud-smile/bubble-filled.png",
   "pixelWidth": 4096,
   "pixelHeight": 4096,
   "sliceInsets": { "left": 900, "top": 900, "right": 900, "bottom": 900 },

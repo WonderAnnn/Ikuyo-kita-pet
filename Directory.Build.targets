@@ -1,0 +1,5 @@
+<Project>
+  <!-- Public resources are declared by src/IkuyoPet.App/IkuyoPet.App.csproj.
+       Keeping the item links in one project prevents duplicate or stale copies
+       (especially the localized interaction file names) in output folders. -->
+</Project>

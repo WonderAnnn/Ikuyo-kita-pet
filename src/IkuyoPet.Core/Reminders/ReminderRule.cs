@@ -45,6 +45,22 @@ public sealed record ReminderRule(
         ParameterSource = "general-default",
         ParameterVersion = "2026-09-09",
     };
+
+    public static ReminderRule CreateDefaultHydration(Guid id) => new(
+        id,
+        "water",
+        "喝口水嘛～去接一杯，顺便走两步回来，好不好？ദ്ദി˶>𖥦<)✧",
+        new TimeOnly(8, 0),
+        new TimeOnly(23, 0),
+        15,
+        true)
+    {
+        IntervalMinMinutes = 15,
+        IntervalMaxMinutes = 20,
+        ActivityDurationMinutes = 0,
+        ParameterSource = "general-default",
+        ParameterVersion = "2026-09-11",
+    };
 }
 
 public sealed record QuietHours(

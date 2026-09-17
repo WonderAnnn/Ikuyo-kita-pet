@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
+using IkuyoPet.Core.Diagnostics;
 using IkuyoPet.Core.Presentation;
 using IkuyoPet.Core.Reminders;
 using IkuyoPet.Core.Storage;
@@ -8,7 +10,8 @@ namespace IkuyoPet.Infrastructure.Windows;
 
 public sealed class ReminderLoop
 {
-    private static readonly Guid DefaultRuleId = Guid.Parse("76b178f2-1700-4f17-b72a-f4b3e9c52d1f");
+    private static readonly Guid DefaultRuleId = DefaultReminderRuleIds.Activity;
+    private static readonly Guid DefaultHydrationRuleId = DefaultReminderRuleIds.Hydration;
     private readonly IEventRepository repository;
     private readonly ReminderPresentationRouter router;
     private readonly Func<bool> isPetEnabled;
@@ -20,6 +23,7 @@ public sealed class ReminderLoop
     private readonly Func<bool> isSuppressed;
     private readonly TimeSpan suppressionRecoveryDelay;
     private readonly ReminderActionCoordinator? actionCoordinator;
+    private readonly RuntimeHealthRegistry? healthRegistry;
     private bool suppressionObserved;
     private DateTimeOffset? recoveryStartedAt;
     private readonly Dictionary<Guid, DateTimeOffset> legacyLastDisplayedAt = [];
@@ -35,7 +39,8 @@ public sealed class ReminderLoop
         IReminderIntervalRandom? intervalRandom = null,
         Func<bool>? isSuppressed = null,
         TimeSpan? suppressionRecoveryDelay = null,
-        ReminderActionCoordinator? actionCoordinator = null)
+        ReminderActionCoordinator? actionCoordinator = null,
+        RuntimeHealthRegistry? healthRegistry = null)
     {
         this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         this.router = router ?? throw new ArgumentNullException(nameof(router));
@@ -48,6 +53,7 @@ public sealed class ReminderLoop
         this.isSuppressed = isSuppressed ?? (() => false);
         this.suppressionRecoveryDelay = suppressionRecoveryDelay ?? TimeSpan.FromMinutes(2);
         this.actionCoordinator = actionCoordinator;
+        this.healthRegistry = healthRegistry;
         ArgumentOutOfRangeException.ThrowIfLessThan(this.tickInterval, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThan(this.suppressionRecoveryDelay, TimeSpan.Zero);
     }
@@ -57,7 +63,27 @@ public sealed class ReminderLoop
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await ProcessOnceAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var startedAt = timeProvider.GetUtcNow();
+                healthRegistry?.MarkLoopStarted("reminder", startedAt);
+                await ProcessOnceAsync(cancellationToken).ConfigureAwait(false);
+                var completedAt = timeProvider.GetUtcNow();
+                healthRegistry?.MarkLoopSucceeded(
+                    "reminder", completedAt, completedAt.Add(tickInterval));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // A transient failure (for example a busy database) must not silently
+                // stop reminders; record it and keep ticking.
+                Debug.WriteLine($"Reminder loop cycle failed: {exception}");
+                healthRegistry?.MarkLoopFailed("reminder", "cycle-failed", timeProvider.GetUtcNow());
+            }
+
             if (tickInterval == TimeSpan.Zero) await Task.Yield();
             else await Task.Delay(tickInterval, timeProvider, cancellationToken).ConfigureAwait(false);
         }
@@ -72,7 +98,7 @@ public sealed class ReminderLoop
         if (delta.ActiveSeconds <= 0) return;
 
         var rules = await ReadRulesEnsuringDefaultAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var rule in rules.Where(static candidate => candidate.Enabled))
+        foreach (var rule in rules.Where(static candidate => candidate.Enabled && !IsWallClockRule(candidate)))
         {
             var previous = await repository.ReadReminderRuntimeStateAsync(rule.Id, cancellationToken)
                 .ConfigureAwait(false);
@@ -127,6 +153,44 @@ public sealed class ReminderLoop
             catch (NotSupportedException)
             {
                 await ProcessLegacyRuleAsync(rule, now, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            if (IsWallClockRule(rule))
+            {
+                var wallClockScheduler = new WallClockReminderScheduler(
+                    rule,
+                    intervalRandom,
+                    runtime,
+                    new TimeProviderReminderClock(timeProvider));
+                if (runtime is null)
+                {
+                    wallClockScheduler.StartNewCycle();
+                    await repository.UpsertReminderRuntimeStateAsync(
+                        wallClockScheduler.State,
+                        cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                wallClockScheduler.Observe(now, timeZone);
+                if (wallClockScheduler.State != runtime)
+                {
+                    await repository.UpsertReminderRuntimeStateAsync(
+                        wallClockScheduler.State,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                if (wallClockScheduler.State.Status != ReminderRuntimeStatus.Due ||
+                    !wallClockScheduler.IsPresentableNow(now, timeZone))
+                {
+                    continue;
+                }
+
+                await PresentDueAsync(
+                    rule,
+                    wallClockScheduler.State,
+                    now,
+                    cancellationToken).ConfigureAwait(false);
                 continue;
             }
 
@@ -209,19 +273,37 @@ public sealed class ReminderLoop
         CancellationToken cancellationToken)
     {
         var rules = await repository.ReadReminderRulesAsync(cancellationToken).ConfigureAwait(false);
-        if (rules.Count != 0) return rules;
+        if (rules.Count == 0)
+        {
+            try
+            {
+                await repository.TryAddDefaultReminderRuleAsync(
+                    ReminderRule.CreateDefaultActiveWork(DefaultRuleId),
+                    cancellationToken).ConfigureAwait(false);
+                rules = await repository.ReadReminderRulesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (NotSupportedException)
+            {
+                return rules;
+            }
+        }
 
-        try
+        if (!rules.Any(IsWallClockRule))
         {
-            await repository.TryAddDefaultReminderRuleAsync(
-                ReminderRule.CreateDefaultActiveWork(DefaultRuleId),
-                cancellationToken).ConfigureAwait(false);
-            return await repository.ReadReminderRulesAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await repository.UpsertReminderRuleAsync(
+                    ReminderRule.CreateDefaultHydration(DefaultHydrationRuleId),
+                    cancellationToken).ConfigureAwait(false);
+                rules = await repository.ReadReminderRulesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (NotSupportedException)
+            {
+                // Compatibility for repositories that predate persisted default rules.
+            }
         }
-        catch (NotSupportedException)
-        {
-            return rules;
-        }
+
+        return rules;
     }
 
 
@@ -237,15 +319,24 @@ public sealed class ReminderLoop
             return;
         }
 
+        var options = IsWallClockRule(rule)
+            ? new[]
+            {
+                new ReminderActionOption(ReminderAction.Complete, "好～我现在就喝！"),
+                new ReminderActionOption(ReminderAction.Snooze, "等一下下嘛～"),
+                new ReminderActionOption(ReminderAction.Skip, "这次先跳过啦"),
+            }
+            : new[]
+            {
+                new ReminderActionOption(ReminderAction.Complete, "好呀，我现在去"),
+                new ReminderActionOption(ReminderAction.Snooze, "再等我五分钟"),
+                new ReminderActionOption(ReminderAction.Skip, "这次先算啦"),
+            };
         var due = new ReminderDue(
             eventId,
             rule.Kind,
             rule.Message,
-            [
-                new ReminderActionOption(ReminderAction.Complete, "好呀，我现在去"),
-                new ReminderActionOption(ReminderAction.Snooze, "再等我五分钟"),
-                new ReminderActionOption(ReminderAction.Skip, "这次先算啦"),
-            ]);
+            options);
         var petEnabled = isPetEnabled();
         var item = new ReminderEvent(
             eventId,
@@ -271,6 +362,7 @@ public sealed class ReminderLoop
         {
             throw new InvalidOperationException($"Reminder event '{item.Id}' channel could not be updated.");
         }
+        healthRegistry?.RecordReminder(new RecentReminderSnapshot(eventId, rule.Kind, channel, "presented", now));
     }
 
     private async Task ProcessLegacyRuleAsync(
@@ -309,6 +401,8 @@ public sealed class ReminderLoop
         SHA256.HashData(input, hash);
         return new Guid(hash[..16]);
     }
+
+    private static bool IsWallClockRule(ReminderRule rule) => ReminderKinds.IsWallClock(rule.Kind);
 
     private sealed class TimeProviderReminderClock(TimeProvider provider) : IReminderClock
     {

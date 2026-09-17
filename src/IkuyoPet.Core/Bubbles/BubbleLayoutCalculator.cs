@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace IkuyoPet.Core.Bubbles;
@@ -9,44 +6,73 @@ public static class BubbleLayoutCalculator
 {
     private const double CharacterWidth = 16;
     private const double LineHeight = 24;
-    private const double HorizontalPadding = 28;
-    private const double VerticalPadding = 22;
+    private const double MinimumSafeWidth = 112;
+    private const double MaximumSafeWidth = 320;
+    private const double MaximumBubbleHeight = 460;
 
     public const double ContentHeightHardCap = 1080;
 
     public static BubbleLayoutResult Calculate(
         BubbleThemeDefinition theme,
         string? text,
-        IReadOnlyList<string>? actionLabels = null)
+        IReadOnlyList<string>? actionLabels = null,
+        double maximumWindowHeight = MaximumBubbleHeight)
     {
         ArgumentNullException.ThrowIfNull(theme);
-        var normalizedText = text ?? string.Empty;
-        var actionText = actionLabels is null || actionLabels.Count == 0
+        if (!double.IsFinite(maximumWindowHeight) ||
+            maximumWindowHeight < 132 ||
+            maximumWindowHeight > MaximumBubbleHeight)
+            throw new ArgumentOutOfRangeException(nameof(maximumWindowHeight));
+
+        var actionText = actionLabels is null
             ? string.Empty
             : string.Join("  ·  ", actionLabels.Where(label => !string.IsNullOrWhiteSpace(label)));
         var fullText = string.IsNullOrEmpty(actionText)
-            ? normalizedText
-            : string.IsNullOrEmpty(normalizedText) ? actionText : $"{normalizedText}  ·  {actionText}";
-        var paragraphs = fullText.Split('\n');
-        var paragraphLengths = paragraphs
-            .Select(paragraph => paragraph.EnumerateRunes().Count())
+            ? text ?? string.Empty
+            : string.IsNullOrEmpty(text) ? actionText : $"{text}  ·  {actionText}";
+        var lengths = fullText.Split('\n')
+            .Select(value => Math.Max(1, value.EnumerateRunes().Count()))
             .ToArray();
-        var longestParagraph = Math.Max(1, paragraphLengths.Max());
-        var desiredWidth = Math.Max(theme.MinContentWidth, longestParagraph * CharacterWidth + HorizontalPadding);
-        var contentWidth = Math.Min(theme.MaxContentWidth, desiredWidth);
-        var safeWidth = Math.Max(CharacterWidth, contentWidth * theme.TextSafeArea.Width);
-        var wrappedLines = paragraphLengths.Sum(length =>
-            Math.Max(1, (int)Math.Ceiling(length * CharacterWidth / safeWidth)));
-        var desiredHeight = wrappedLines * LineHeight + VerticalPadding;
-        var effectiveHardCap = Math.Max(ContentHeightHardCap, theme.MinContentHeight);
-        var contentHeight = Math.Clamp(desiredHeight, theme.MinContentHeight, effectiveHardCap);
-        var textHeight = Math.Min(wrappedLines * LineHeight, contentHeight - VerticalPadding);
-        var textWidth = Math.Max(CharacterWidth, contentWidth * theme.TextSafeArea.Width);
-        var textLeft = contentWidth * theme.TextSafeArea.Left;
-        var textTop = Math.Max(0, (contentHeight - textHeight) / 2);
-        var windowWidth = contentWidth + HorizontalPadding * 2;
-        var windowHeight = contentHeight + VerticalPadding * 2;
-        return new BubbleLayoutResult(contentWidth, contentHeight, windowWidth, windowHeight,
-            new BubbleTextArea(textLeft, textTop, textWidth, textHeight), wrappedLines);
+        var longest = lengths.Max();
+        var aspect = (double)theme.PixelWidth / theme.PixelHeight;
+        var targetSafeWidth = Math.Clamp(longest * 4 + 28, MinimumSafeWidth, MaximumSafeWidth);
+        var height = Math.Clamp(
+            targetSafeWidth / (aspect * theme.TextSafeArea.Width),
+            132,
+            maximumWindowHeight);
+
+        int lineCount;
+        double safeWidth;
+        double safeHeight;
+        while (true)
+        {
+            var width = height * aspect;
+            safeWidth = width * theme.TextSafeArea.Width;
+            safeHeight = height * theme.TextSafeArea.Height;
+            lineCount = lengths.Sum(length =>
+                Math.Max(1, (int)Math.Ceiling(length * CharacterWidth / safeWidth)));
+            if (lineCount * LineHeight <= safeHeight || height >= MaximumBubbleHeight) break;
+            if (height >= maximumWindowHeight) break;
+            height = Math.Min(maximumWindowHeight, height + 4);
+        }
+
+        var windowWidth = height * aspect;
+        var contentHeight = lineCount * LineHeight;
+        var result = new BubbleLayoutResult(
+            safeWidth,
+            contentHeight,
+            windowWidth,
+            height,
+            new BubbleTextArea(
+                windowWidth * theme.TextSafeArea.Left,
+                height * theme.TextSafeArea.Top,
+                safeWidth,
+                safeHeight),
+            lineCount);
+        return result with
+        {
+            RequiresVerticalScroll = contentHeight > safeHeight,
+            TextViewportHeight = safeHeight,
+        };
     }
 }

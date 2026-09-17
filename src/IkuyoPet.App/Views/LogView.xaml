@@ -4,40 +4,71 @@
     <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <StackPanel>
-            <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#FF263247" Text="提醒与活动日志"/>
+            <TextBlock Style="{StaticResource FormPageTitle}" Text="提醒与活动日志"/>
             <TextBlock Margin="0,8,0,16" Foreground="#FF68778D" Text="动作完成后会立即刷新；只记录日期、时间、渠道和结果，不记录睡眠或医疗信息。" TextWrapping="Wrap"/>
-        </StackPanel>
-        <Border Grid.Row="1" Style="{StaticResource LogFilterBarStyle}"><WrapPanel Orientation="Horizontal">
-            <DatePicker Style="{StaticResource LogDatePickerStyle}" SelectedDate="{Binding SelectedDate, Mode=TwoWay}" AutomationProperties.Name="日期筛选" Margin="0,0,12,0"/>
-            <ComboBox Style="{StaticResource LogComboBoxStyle}" Width="116" SelectedValue="{Binding KindFilter, Mode=TwoWay}" SelectedValuePath="Content" AutomationProperties.Name="类型筛选" Margin="0,0,12,0"><ComboBoxItem Content="全部"/><ComboBoxItem Content="喝水"/><ComboBoxItem Content="活动"/><ComboBoxItem Content="工作"/></ComboBox>
-            <ComboBox Style="{StaticResource LogComboBoxStyle}" Width="132" SelectedValue="{Binding OutcomeFilter, Mode=TwoWay}" SelectedValuePath="Content" AutomationProperties.Name="结果筛选"><ComboBoxItem Content="全部结果"/><ComboBoxItem Content="完成"/><ComboBoxItem Content="搁置"/><ComboBoxItem Content="跳过"/><ComboBoxItem Content="未响应"/><ComboBoxItem Content="待处理"/></ComboBox>
-        </WrapPanel></Border>
-        <Border Grid.Row="2" Style="{StaticResource LogFilterBarStyle}" Padding="14">
+        </StackPanel>        <Border Grid.Row="1" Style="{StaticResource LogFilterBarStyle}">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
+                    <StackPanel Width="148" Margin="0,0,12,0" VerticalAlignment="Top">
+                        <DatePicker Height="32" VerticalAlignment="Top"
+                                    Style="{StaticResource LogDatePickerStyle}"
+                                    SelectedDate="{Binding SelectedDate, Mode=TwoWay}"
+                                    Text="{Binding SelectedDateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    AutomationProperties.Name="日期筛选"
+                                    ToolTip="请输入 yyyy/M/d，例如 2026/9/12"/>
+                        <TextBlock Margin="2,4,0,0" Foreground="#FFC43D62" FontSize="11"
+                                   Text="{Binding LogDateValidationMessage}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ComboBox Height="32" VerticalAlignment="Top" Style="{StaticResource LogComboBoxStyle}" Width="112" SelectedValue="{Binding KindFilter, Mode=TwoWay}" SelectedValuePath="Content" AutomationProperties.Name="类型筛选" Margin="0,0,12,0"><ComboBoxItem Content="全部"/><ComboBoxItem Content="喝水"/><ComboBoxItem Content="活动"/><ComboBoxItem Content="工作"/></ComboBox>
+                    <ComboBox Height="32" VerticalAlignment="Top" Style="{StaticResource LogComboBoxStyle}" Width="122" SelectedValue="{Binding OutcomeFilter, Mode=TwoWay}" SelectedValuePath="Content" AutomationProperties.Name="结果筛选"><ComboBoxItem Content="全部结果"/><ComboBoxItem Content="完成"/><ComboBoxItem Content="搁置"/><ComboBoxItem Content="跳过"/><ComboBoxItem Content="未响应"/><ComboBoxItem Content="待处理"/></ComboBox>
+                </StackPanel>
+                <Button Grid.Row="0" Grid.Column="1" Width="86" Height="32" Padding="0" Margin="12,0,0,0"
+                        VerticalAlignment="Top" HorizontalAlignment="Right"
+                        Command="{Binding ExportPdfCommand}" Content="导出 PDF"
+                        Background="#FFC25692" Foreground="White" BorderBrush="#FFC25692"
+                        FocusVisualStyle="{x:Null}" AutomationProperties.Name="导出日志 PDF"/>
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <TextBlock Foreground="#FF68778D" Text="{Binding PdfExportStatus}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="360"/>
+                </StackPanel>
+            </Grid>
+        </Border>        <Border Grid.Row="2" Style="{StaticResource LogFilterBarStyle}" Padding="14">
             <Grid>
                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="#FF263247" Text="工作统计" VerticalAlignment="Center"/>
-                    <ComboBox Margin="14,0,0,0" Width="92" Style="{StaticResource LogComboBoxStyle}" SelectedIndex="{Binding StatisticsPeriodIndex, Mode=TwoWay}" AutomationProperties.Name="统计范围">
-                        <ComboBoxItem Content="日"/><ComboBoxItem Content="周"/><ComboBoxItem Content="月"/>
-                    </ComboBox>
-                    <TextBlock Margin="18,0,0,0" Foreground="#FF68778D" Text="总有效工作" VerticalAlignment="Center"/>
-                    <TextBlock Margin="8,0,0,0" FontWeight="SemiBold" Foreground="#FFC25692" Text="{Binding WorkStatisticsTotalText}" VerticalAlignment="Center"/><TextBlock Margin="10,0,0,0" Foreground="#FF68778D" Text="{Binding WorkStatisticsRangeText}" VerticalAlignment="Center"/>
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="#FF263247" Text="工作统计"/>
+                        <TextBlock Margin="0,4,0,0" Foreground="#FF68778D" FontSize="12" Text="{Binding WorkStatisticsRangeText}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                        <RadioButton GroupName="StatisticsPeriod" Style="{StaticResource LogPeriodButtonStyle}" Content="日" Command="{Binding SelectStatisticsPeriodCommand}" CommandParameter="0" IsChecked="{Binding IsDayStatisticsSelected, Mode=OneWay}" AutomationProperties.Name="按日统计"/>
+                        <RadioButton GroupName="StatisticsPeriod" Style="{StaticResource LogPeriodButtonStyle}" Content="周" Command="{Binding SelectStatisticsPeriodCommand}" CommandParameter="1" IsChecked="{Binding IsWeekStatisticsSelected, Mode=OneWay}" AutomationProperties.Name="按周统计"/>
+                        <RadioButton GroupName="StatisticsPeriod" Style="{StaticResource LogPeriodButtonStyle}" Content="月" Command="{Binding SelectStatisticsPeriodCommand}" CommandParameter="2" IsChecked="{Binding IsMonthStatisticsSelected, Mode=OneWay}" AutomationProperties.Name="按月统计"/>
+                    </StackPanel>
+                </Grid>
+                <StackPanel Grid.Row="1" Margin="0,12,0,0" Orientation="Horizontal">
+                    <TextBlock Foreground="#FF68778D" Text="总有效工作" VerticalAlignment="Center"/>
+                    <TextBlock Margin="8,0,0,0" FontWeight="SemiBold" Foreground="#FFC25692" Text="{Binding WorkStatisticsTotalText}" VerticalAlignment="Center"/>
                 </StackPanel>
-                <ItemsControl Grid.Row="1" Margin="0,14,0,0" ItemsSource="{Binding TopApplicationStats}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Margin="0,0,0,8">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Foreground="#FF263247" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                <ProgressBar Grid.Column="1" Margin="10,0" Height="9" Minimum="0" Maximum="1" Value="{Binding Share}" Foreground="#FFC25692" Background="#FFF4E8EF" BorderThickness="0" IsHitTestVisible="False" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Foreground="#FF68778D" Text="{Binding DurationText}" TextAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <TextBlock Grid.Row="2" Margin="0,8,0,0" Foreground="#FF9AA8B8" Text="当前范围还没有有效前台工作记录" HorizontalAlignment="Center">
-                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding TopApplicationStats.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
-                </TextBlock>
+                <Grid Grid.Row="2" Margin="0,14,0,0">
+                    <ItemsControl ItemsSource="{Binding TopApplicationStats}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Foreground="#FF263247" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                    <ProgressBar Grid.Column="1" Margin="10,0" Height="9" Minimum="0" Maximum="1" Value="{Binding Share}" Foreground="#FFC25692" Background="#FFF4E8EF" BorderThickness="0" IsHitTestVisible="False" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Foreground="#FF68778D" Text="{Binding DurationText}" TextAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Foreground="#FF9AA8B8" Text="当前范围还没有有效前台工作记录" HorizontalAlignment="Center">
+                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding TopApplicationStats.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
+                </Grid>
             </Grid>
         </Border>
         <Grid Grid.Row="3">

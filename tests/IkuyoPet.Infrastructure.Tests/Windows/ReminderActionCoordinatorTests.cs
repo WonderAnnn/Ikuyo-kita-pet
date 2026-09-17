@@ -33,6 +33,152 @@ public sealed class ReminderActionCoordinatorTests
     }
 
     [Fact]
+    public async Task WaterActionStartsTheNextWallClockCycle()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.FromHours(8));
+        var rule = ReminderRule.CreateDefaultHydration(Guid.NewGuid()) with
+        {
+            IntervalMinMinutes = 15,
+            IntervalMaxMinutes = 15,
+        };
+        var repository = new ReminderRepositoryStub([rule], supportsRuntimeState: true);
+        var runtime = new ReminderRuntimeState(
+            rule.Id,
+            Guid.NewGuid(),
+            900,
+            900,
+            ReminderRuntimeStatus.Due,
+            1,
+            null,
+            now);
+        await repository.UpsertReminderRuntimeStateAsync(runtime, TestContext.Current.CancellationToken);
+        var item = new ReminderEvent(
+            Guid.NewGuid(),
+            rule.Id,
+            now,
+            now,
+            "pet",
+            ReminderOutcome.None,
+            null,
+            0,
+            null,
+            now);
+        repository.Events.Add(item);
+        var coordinator = new ReminderActionCoordinator(
+            repository,
+            new ReminderStateMachine(maxAttempts: 3),
+            new FixedTimeProvider(now),
+            new FixedIntervalRandom(15));
+
+        var result = await coordinator.HandleAsync(
+            item.Id,
+            ReminderAction.Complete,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result!.Value.Applied);
+        var next = await repository.ReadReminderRuntimeStateAsync(
+            rule.Id,
+            TestContext.Current.CancellationToken);
+        Assert.NotNull(next);
+        Assert.Equal(ReminderRuntimeStatus.Accumulating, next.Status);
+        Assert.Equal(900, next.TargetActiveSeconds);
+        Assert.Equal(now, next.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task ManualWaterActionLogsCompletionAndStartsANewWallClockCycle()
+    {
+        var now = new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.FromHours(8));
+        var rule = ReminderRule.CreateDefaultHydration(Guid.NewGuid()) with
+        {
+            IntervalMinMinutes = 15,
+            IntervalMaxMinutes = 20,
+        };
+        var repository = new ReminderRepositoryStub([rule], supportsRuntimeState: true);
+        var previous = new ReminderRuntimeState(
+            rule.Id,
+            Guid.NewGuid(),
+            900,
+            900,
+            ReminderRuntimeStatus.Due,
+            1,
+            null,
+            now.AddMinutes(-1));
+        await repository.UpsertReminderRuntimeStateAsync(previous, TestContext.Current.CancellationToken);
+        var coordinator = new ReminderActionCoordinator(
+            repository,
+            new ReminderStateMachine(maxAttempts: 3),
+            new FixedTimeProvider(now),
+            new FixedIntervalRandom(18));
+
+        var result = await coordinator.HandleManualAsync(
+            "water",
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Applied);
+        Assert.Equal(ReminderOutcome.Completed, result.Transition.Outcome);
+        var logged = Assert.Single(repository.Events);
+        Assert.Equal(rule.Id, logged.RuleId);
+        Assert.Equal("pet", logged.Channel);
+        Assert.Equal(ReminderOutcome.Completed, logged.Outcome);
+        Assert.Equal(now, logged.ActionAt);
+        var next = await repository.ReadReminderRuntimeStateAsync(
+            rule.Id,
+            TestContext.Current.CancellationToken);
+        Assert.NotNull(next);
+        Assert.NotEqual(previous.CycleId, next.CycleId);
+        Assert.Equal(ReminderRuntimeStatus.Accumulating, next.Status);
+        Assert.Equal(18 * 60, next.TargetActiveSeconds);
+        Assert.Equal(now, next.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task ManualActivityActionUsesTheActivityCompletionPath()
+    {
+        var now = new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.FromHours(8));
+        var rule = ReminderRule.CreateDefaultActiveWork(Guid.NewGuid()) with
+        {
+            IntervalMinMinutes = 40,
+            IntervalMaxMinutes = 50,
+            ActivityDurationMinutes = 5,
+        };
+        var repository = new ReminderRepositoryStub([rule], supportsRuntimeState: true);
+        var coordinator = new ReminderActionCoordinator(
+            repository,
+            new ReminderStateMachine(maxAttempts: 3),
+            new FixedTimeProvider(now),
+            new FixedIntervalRandom(42));
+
+        var result = await coordinator.HandleManualAsync(
+            "activity",
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Applied);
+        var logged = Assert.Single(repository.Events);
+        Assert.Equal(rule.Id, logged.RuleId);
+        Assert.Equal(rule.ActivityDurationMinutes, logged.ActivityDurationMinutes);
+        var next = await repository.ReadReminderRuntimeStateAsync(
+            rule.Id,
+            TestContext.Current.CancellationToken);
+        Assert.NotNull(next);
+        Assert.Equal(42 * 60, next.TargetActiveSeconds);
+    }
+
+    [Fact]
+    public async Task ManualActionRejectsUnknownReminderKind()
+    {
+        var repository = new ReminderRepositoryStub([]);
+        var coordinator = new ReminderActionCoordinator(
+            repository,
+            new ReminderStateMachine(maxAttempts: 3),
+            new FixedTimeProvider(DateTimeOffset.UtcNow));
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            coordinator.HandleManualAsync(
+                "unknown",
+                TestContext.Current.CancellationToken));
+    }
+    [Fact]
     public async Task RepeatedFinalActionForSameEventIsAppliedOnlyOnce()
     {
         var (coordinator, repository, item, _) = CreateCoordinator(retryIndex: 0);
@@ -119,6 +265,11 @@ public sealed class ReminderActionCoordinatorTests
             new ReminderStateMachine(maxAttempts: 3),
             new FixedTimeProvider(now));
         return (coordinator, repository, item, now);
+    }
+
+    private sealed class FixedIntervalRandom(int value) : IReminderIntervalRandom
+    {
+        public int NextInclusive(int minimum, int maximum) => value;
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

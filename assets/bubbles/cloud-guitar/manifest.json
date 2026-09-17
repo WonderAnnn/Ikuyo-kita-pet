@@ -1,9 +1,9 @@
 {
   "id": "cloud-guitar",
-  "name": "吉他现场",
+  "name": "元气微笑",
   "version": "1.0.0",
-  "resourcePath": "cloud-guitar/bubble.png",
-  "previewPath": "cloud-guitar/bubble.png",
+  "resourcePath": "cloud-guitar/bubble-filled.png",
+  "previewPath": "cloud-guitar/bubble-filled.png",
   "pixelWidth": 2048,
   "pixelHeight": 2048,
   "sliceInsets": { "left": 620, "top": 420, "right": 420, "bottom": 420 },

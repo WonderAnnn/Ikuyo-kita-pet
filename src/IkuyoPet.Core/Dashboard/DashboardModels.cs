@@ -16,10 +16,8 @@ public sealed record TimelineItem(
 
     public string KindText => Kind switch
     {
-        "water" or "hydration" => "喝水",
-        "activity" or "move" => "活动",
         "work" => "工作",
-        _ => Kind,
+        _ => ReminderKinds.ToDisplayText(Kind),
     };
 
     public string ChannelText => Channel switch
@@ -59,6 +57,10 @@ public sealed record DashboardSnapshot(
     public ReminderRule? ActiveWorkRule { get; init; }
 
     public ReminderRuntimeState? ActiveWorkRuntime { get; init; }
+
+    public ReminderRule? HydrationRule { get; init; }
+
+    public ReminderRuntimeState? HydrationRuntime { get; init; }
 }
 
 public enum MainWindowPage
@@ -66,6 +68,7 @@ public enum MainWindowPage
     Today,
     Log,
     Rules,
+    Diagnostics,
     Pet,
     Settings,
 }

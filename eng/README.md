@@ -23,4 +23,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\eng\verify-dev.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\eng\publish-local.ps1
 ```
 
-`publish-local.ps1` 生成 `artifacts/publish/win-x64/IkuyoPet.exe`，使用自包含 `win-x64` 发布，不要求目标机器另装 .NET 或 SQLite 服务。发布前会还原 NuGet 包；网络不可用时应确保 `G:\IkuyoPetDev\nuget\packages` 已有缓存，并可传入 `-SkipRestore`。脚本只复制 Git 忽略的 `local-skins/`，不会复制数据库、日志或测试输出。
+`publish-local.ps1` 现在发布包含 `assets/` 公开资源的自包含 win-x64 应用，并调用 `verify-dev.ps1` 校验发布目录。公开皮肤、气泡、互动文案和图标均来自 `assets/`；`local-assets/`、`local-skins/`、`tmp/`、`output/` 和 `artifacts/` 继续保持本机私有或生成物属性，不会被复制到公开发布包。固定版本发布使用 `scripts/publish-latest.ps1`，它原子替换 `artifacts/publish/latest` 并写入构建信息和资源 SHA-256。

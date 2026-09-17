@@ -19,12 +19,26 @@ public sealed class DashboardQueryService(
             rule.Enabled &&
             (string.Equals(rule.Kind, "activity", StringComparison.OrdinalIgnoreCase) ||
              string.Equals(rule.Kind, "move", StringComparison.OrdinalIgnoreCase)));
+        var hydrationRule = rules.FirstOrDefault(rule =>
+            rule.Enabled && ReminderKinds.IsWallClock(rule.Kind));
         ReminderRuntimeState? activeWorkRuntime = null;
         if (activeWorkRule is not null)
         {
             try
             {
                 activeWorkRuntime = await repository.ReadReminderRuntimeStateAsync(activeWorkRule.Id, cancellationToken);
+            }
+            catch (NotSupportedException)
+            {
+                // Legacy repositories may not persist runtime state.
+            }
+        }
+        ReminderRuntimeState? hydrationRuntime = null;
+        if (hydrationRule is not null)
+        {
+            try
+            {
+                hydrationRuntime = await repository.ReadReminderRuntimeStateAsync(hydrationRule.Id, cancellationToken);
             }
             catch (NotSupportedException)
             {
@@ -68,6 +82,8 @@ public sealed class DashboardQueryService(
                 "move"),
             ActiveWorkRule = activeWorkRule,
             ActiveWorkRuntime = activeWorkRuntime,
+            HydrationRule = hydrationRule,
+            HydrationRuntime = hydrationRuntime,
         };
     }
 

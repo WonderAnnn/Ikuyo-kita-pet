@@ -18,29 +18,32 @@
             Width="380"
             Height="430"
             Background="Transparent">
-        <Grid x:Name="Bubble"
-              Panel.ZIndex="10"
-              Visibility="Collapsed"
-              Canvas.Left="12"
-              Canvas.Top="8"
-              Width="356"
-              Height="116"
-              SnapsToDevicePixels="True">
-            <local:BubbleChrome x:Name="BubbleDecoration"
-                                Panel.ZIndex="10"
-                                IsHitTestVisible="False" />
-            <Canvas Panel.ZIndex="20" Background="Transparent">
+        <local:BubbleChrome x:Name="BubbleRoot"
+                            Panel.ZIndex="10"
+                            Visibility="Collapsed"
+                            Canvas.Left="12"
+                            Canvas.Top="8"
+                            Width="356"
+                            Height="116"
+                            ClipToBounds="True"
+                            SnapsToDevicePixels="True">
+            <ScrollViewer x:Name="ReminderScroll"
+                          Panel.ZIndex="20"
+                          Background="Transparent"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          CanContentScroll="False"
+                          Focusable="False">
                 <TextBlock x:Name="ReminderText"
-                           Panel.ZIndex="20"
                            Foreground="#332B3D"
                            FontSize="16"
                            LineHeight="24"
                            TextAlignment="Left"
                            HorizontalAlignment="Left"
-                           VerticalAlignment="Center"
+                           VerticalAlignment="Top"
                            TextWrapping="Wrap" />
-            </Canvas>
-        </Grid>
+            </ScrollViewer>
+        </local:BubbleChrome>
         <Border x:Name="PetHitArea"
                 Panel.ZIndex="0"
                 Canvas.Left="110"

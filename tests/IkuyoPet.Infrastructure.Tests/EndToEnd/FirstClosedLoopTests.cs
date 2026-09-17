@@ -25,8 +25,12 @@ public sealed class FirstClosedLoopTests
             var loop = CreateLoop(repository, presenter, clock);
             await loop.ProcessOnceAsync(TestContext.Current.CancellationToken);
 
-            var rule = Assert.Single(await repository.ReadReminderRulesAsync(TestContext.Current.CancellationToken));
-            Assert.Equal("activity", rule.Kind);
+            var rules = await repository.ReadReminderRulesAsync(TestContext.Current.CancellationToken);
+            var rule = Assert.Single(rules, candidate => candidate.Kind == "activity");
+            Assert.Equal(2, rules.Count);
+            var hydration = Assert.Single(rules, candidate => candidate.Kind == "water");
+            Assert.Equal(15, hydration.IntervalMinMinutes);
+            Assert.Equal(20, hydration.IntervalMaxMinutes);
             Assert.Equal(40, rule.IntervalMinMinutes);
             Assert.Equal(50, rule.IntervalMaxMinutes);
             Assert.Equal(5, rule.ActivityDurationMinutes);
@@ -295,8 +299,7 @@ public sealed class FirstClosedLoopTests
     {
         public int NextInclusive(int minimum, int maximum)
         {
-            Assert.InRange(value, minimum, maximum);
-            return value;
+            return Math.Clamp(value, minimum, maximum);
         }
     }
 

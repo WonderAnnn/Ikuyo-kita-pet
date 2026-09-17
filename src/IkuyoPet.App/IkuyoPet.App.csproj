@@ -5,20 +5,40 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>IkuyoPet.App</RootNamespace>
     <AssemblyName>IkuyoPet</AssemblyName>
-    <Version>0.1.1</Version>
-    <AssemblyVersion>0.1.1.0</AssemblyVersion>
-    <FileVersion>0.1.1.0</FileVersion>
+    <Version>0.1.4</Version>
+    <AssemblyVersion>0.1.4.0</AssemblyVersion>
+    <FileVersion>0.1.4.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <LocalAssetsRoot Condition="'$(LocalAssetsRoot)' == ''">$(MSBuildProjectDirectory)\..\..\local-assets</LocalAssetsRoot>
-    <LocalBrandingIcon>$(LocalAssetsRoot)\branding\icon\icon256.ico</LocalBrandingIcon>
-    <ApplicationIcon Condition="Exists('$(LocalBrandingIcon)')">$(LocalBrandingIcon)</ApplicationIcon>
+    <IncludeLocalOverrides Condition="'$(IncludeLocalOverrides)' == ''">true</IncludeLocalOverrides>
+    <PublicBrandingIcon>$(MSBuildProjectDirectory)\..\..\assets\branding\icon\icon256.ico</PublicBrandingIcon>
+    <ApplicationIcon Condition="Exists('$(PublicBrandingIcon)')">$(PublicBrandingIcon)</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="local-skins\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json" Link="interactions\ikuyo-click.json" Condition="Exists('$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Remove="local-skins\**" />
+    <Content Remove="local-assets\**" />
+    <None Remove="local-skins\**" />
+    <None Remove="local-assets\**" />
+    <Content Include="..\..\assets\skins\**\*.*"
+             Link="skins\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\branding\icon\*.*"
+             Link="branding\icon\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\bubbles\**\*.*"
+             Link="assets\bubbles\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\interactions\kita-click.zh-CN.json"
+             Link="interactions\kita-click.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json" Link="interactions\ikuyo-click.json" Condition="Exists('$(LocalAssetsRoot)\interactions\ikuyo-click.zh-CN.json') And '$(IncludeLocalOverrides)' == 'true'" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\IkuyoPet.Core\IkuyoPet.Core.csproj" />
     <ProjectReference Include="..\IkuyoPet.Infrastructure\IkuyoPet.Infrastructure.csproj" />
     <ProjectReference Include="..\IkuyoPet.Pet\IkuyoPet.Pet.csproj" />

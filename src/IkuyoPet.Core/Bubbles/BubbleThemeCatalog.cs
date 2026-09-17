@@ -5,15 +5,15 @@ public sealed class BubbleThemeCatalog
     public static IReadOnlyList<BubbleThemeDefinition> BuiltInThemes { get; } =
     [
         new BubbleThemeDefinition(
-            "cloud-chibi", "云朵晕乎", "1.0.0", "cloud-chibi/bubble.png", "cloud-chibi/bubble.png",
+            "cloud-chibi", "云朵晕乎", "1.0.0", "cloud-chibi/bubble-filled.png", "cloud-chibi/bubble-filled.png",
             2752, 1536, new BubbleSliceInsets(520, 250, 520, 280), new BubbleSafeArea(0.28, 0.24, 0.44, 0.40),
             220, 520, 72, 240),
         new BubbleThemeDefinition(
-            "cloud-guitar", "吉他现场", "1.0.0", "cloud-guitar/bubble.png", "cloud-guitar/bubble.png",
+            "cloud-guitar", "元气微笑", "1.0.0", "cloud-guitar/bubble-filled.png", "cloud-guitar/bubble-filled.png",
             2048, 2048, new BubbleSliceInsets(620, 420, 420, 420), new BubbleSafeArea(0.42, 0.25, 0.45, 0.42),
             320, 760, 88, 320),
         new BubbleThemeDefinition(
-            "cloud-smile", "元气微笑", "1.0.0", "cloud-smile/bubble.png", "cloud-smile/bubble.png",
+            "cloud-smile", "吉他现场", "1.0.0", "cloud-smile/bubble-filled.png", "cloud-smile/bubble-filled.png",
             4096, 4096, new BubbleSliceInsets(900, 900, 900, 900), new BubbleSafeArea(0.30, 0.25, 0.48, 0.44),
             260, 680, 96, 320),
     ];
@@ -26,6 +26,10 @@ public sealed class BubbleThemeCatalog
         this.assetsRoot = Path.GetFullPath(assetsRoot);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The default belongs to the configured catalog API and is consumed through injected catalog instances.")]
     public BubbleThemeDefinition Default => BuiltInThemes[0];
 
     public BubbleThemeDefinition Resolve(string? id)
