@@ -16,6 +16,7 @@ New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
 $publishRoot = (Resolve-Path -LiteralPath $publishRoot).Path
 $token = [Guid]::NewGuid().ToString('N')
 $staging = Join-Path $publishRoot "latest-staging-$token"
+$uninstallerStaging = Join-Path $publishRoot "uninstaller-staging-$token"
 $backup = Join-Path $publishRoot "latest-backup-$token"
 $latest = Join-Path $publishRoot 'latest'
 $solution = Join-Path $projectRootPath 'IkuyoPet.sln'
@@ -58,8 +59,10 @@ try {
     & $DotnetPath publish $project --configuration Release --runtime win-x64 --self-contained true --no-restore --output $staging -p:IncludeLocalOverrides=false
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
 
-    & $DotnetPath publish $uninstallerProject --configuration Release --runtime win-x64 --self-contained true --no-restore --output $staging
+    & $DotnetPath publish $uninstallerProject --configuration Release --runtime win-x64 --self-contained true --no-restore --output $uninstallerStaging
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish uninstaller failed with exit code $LASTEXITCODE" }
+    Get-ChildItem -LiteralPath $uninstallerStaging | Copy-Item -Destination $staging -Recurse -Force
+    Remove-Item -LiteralPath $uninstallerStaging -Recurse -Force
 
     $appExe = Join-Path $staging 'IkuyoPet.exe'
     if (-not (Test-Path -LiteralPath $appExe -PathType Leaf)) { throw 'Published executable is missing.' }
@@ -138,5 +141,6 @@ try {
 }
 finally {
     if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
+    if (Test-Path -LiteralPath $uninstallerStaging) { Remove-Item -LiteralPath $uninstallerStaging -Recurse -Force }
     if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force }
 }

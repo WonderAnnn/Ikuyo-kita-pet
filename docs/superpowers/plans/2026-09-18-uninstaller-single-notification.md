@@ -275,7 +275,7 @@ public void DeleteDataPlanTargetsOnlyLocalAppDataDirectory()
 
 - [ ] **步骤 1：创建项目文件**
 
-项目设置固定为：`TargetFramework=net10.0-windows10.0.19041.0`、`OutputType=WinExe`、`UseWPF=true`、`AssemblyName=IkuyoPet.Uninstaller`、`ApplicationIcon=..\..\assets\branding\icon\icon256.ico`。`SelfContained` 不写入项目属性，以便测试项目可引用；发布命令显式传入 `--self-contained true`。
+项目设置固定为：`TargetFramework=net10.0-windows10.0.19041.0`、`OutputType=WinExe`、`UseWPF=true`、`AssemblyName=IkuyoPet.Uninstaller`、`ApplicationIcon=..\..\assets\branding\icon\icon256.ico`。`SelfContained` 不写入项目属性，以便测试项目可引用；发布命令显式传入 `--self-contained true`。卸载启动时将发布根目录顶层运行时文件复制到临时 helper 目录，避免单文件发布造成额外的大体积。
 
 - [ ] **步骤 2：实现可测试的数据模型**
 
@@ -330,7 +330,7 @@ git commit -m "feat: add safe portable uninstaller"
 
 ```powershell
 $uninstallerProject = Join-Path $projectRootPath 'src\IkuyoPet.Uninstaller\IkuyoPet.Uninstaller.csproj'
-& $DotnetPath publish $uninstallerProject --configuration Release --runtime win-x64 --self-contained true --no-restore --output $staging
+    & $DotnetPath publish $uninstallerProject --configuration Release --runtime win-x64 --self-contained true --no-restore --output $uninstallerStaging
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish uninstaller failed with exit code $LASTEXITCODE" }
 
 $uninstallerExe = Join-Path $staging 'IkuyoPet.Uninstaller.exe'

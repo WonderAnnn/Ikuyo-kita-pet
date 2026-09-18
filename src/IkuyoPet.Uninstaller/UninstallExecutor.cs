@@ -41,7 +41,12 @@ public static class UninstallExecutor
         var helperPath = Path.Combine(helperDirectory, "IkuyoPet.Uninstaller.exe");
         var currentPath = Environment.ProcessPath
             ?? throw new InvalidOperationException("无法定位卸载程序自身路径。");
-        File.Copy(currentPath, helperPath, overwrite: true);
+        var currentDirectory = Path.GetDirectoryName(currentPath)
+            ?? throw new InvalidOperationException("无法定位卸载程序目录。");
+        foreach (var file in Directory.EnumerateFiles(currentDirectory))
+        {
+            File.Copy(file, Path.Combine(helperDirectory, Path.GetFileName(file)), overwrite: true);
+        }
 
         var startInfo = new ProcessStartInfo
         {

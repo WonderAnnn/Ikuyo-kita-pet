@@ -125,13 +125,14 @@ public sealed class WindowsAppNotificationSink : INotificationSink, IPendingNoti
 
     public void Dispose()
     {
-        if (manager is null) return;
-
-        manager.NotificationInvoked -= OnNotificationInvoked;
-        if (registered)
+        if (manager is not null)
         {
-            manager.Unregister();
-            registered = false;
+            manager.NotificationInvoked -= OnNotificationInvoked;
+            if (registered)
+            {
+                manager.Unregister();
+                registered = false;
+            }
         }
 
         coordinator.Dispose();

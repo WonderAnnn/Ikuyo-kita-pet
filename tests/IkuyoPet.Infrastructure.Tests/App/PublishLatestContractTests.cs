@@ -13,6 +13,8 @@ public sealed class PublishLatestContractTests
         Assert.Contains("build-info.json", script);
         Assert.Contains("$assetRoot", script);
         Assert.Contains("$uninstallerProject", script);
+        Assert.Contains("$uninstallerStaging", script);
+        Assert.Contains("Get-ChildItem -LiteralPath $uninstallerStaging", script);
         Assert.Contains("IkuyoPet.Uninstaller.exe", script);
         Assert.Contains("uninstaller = [ordered]@", script);
         Assert.Contains("$sourceFiles = Get-ChildItem", script);
