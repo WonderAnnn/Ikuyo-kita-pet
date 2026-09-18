@@ -56,10 +56,14 @@ if ($publicSourceMissing.Count -gt 0) {
 $publishResolved = $null
 $publishMissing = @()
 $publishHasPrivateOverrides = $false
+$publishUninstallerPresent = $null
 if ($PublishRoot) {
     $publishResolved = (Resolve-Path -LiteralPath $PublishRoot).Path
     $exe = Join-Path $publishResolved 'IkuyoPet.exe'
     if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Publish output is missing IkuyoPet.exe: $publishResolved" }
+    $uninstallerExe = Join-Path $publishResolved 'IkuyoPet.Uninstaller.exe'
+    if (-not (Test-Path -LiteralPath $uninstallerExe -PathType Leaf)) { throw "Publish output is missing IkuyoPet.Uninstaller.exe: $publishResolved" }
+    $publishUninstallerPresent = $true
 
     $publishMissing = @(
         $publicRelativeFiles | Where-Object {
@@ -86,6 +90,7 @@ if ($PublishRoot) {
     PublicSourceFiles = $publicRelativeFiles.Count
     PublicAssetsPresent = ($publicSourceMissing.Count -eq 0)
     PublicPublishAssetsPresent = if ($PublishRoot) { $publishMissing.Count -eq 0 } else { $null }
+    PublishUninstallerPresent = $publishUninstallerPresent
     PublishHasPrivateOverrides = $publishHasPrivateOverrides
     PrivateSkinTracked = ($trackedPrivate | Where-Object { $_ -like 'local-skins/*' }).Count -gt 0
     PrivateAssetsTracked = $trackedPrivate.Count -gt 0

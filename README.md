@@ -130,8 +130,9 @@ artifacts/publish/latest/
 2. 检查可执行文件版本与项目版本一致；
 3. 检查三套气泡主题的清单、源图和填充图；
 4. 计算资源 SHA-256；
-5. 写入 `build-info.json`，包含版本号、文件版本、Git 提交和构建时间；
-6. 原子替换 `artifacts/publish/latest`，失败时保留旧目录。
+5. 同时发布 `IkuyoPet.Uninstaller.exe`，并记录卸载器版本和 SHA-256；
+6. 写入 `build-info.json`，包含版本号、文件版本、Git 提交和构建时间；
+7. 原子替换 `artifacts/publish/latest`，失败时保留旧目录。
 
 运行发布与校验：
 
@@ -147,6 +148,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\eng\verify-dev.ps1 `
 G:\testPet\artifacts\publish\latest\IkuyoPet.exe
 ```
 
+### 卸载
+
+发布目录同时包含 `IkuyoPet.Uninstaller.exe`。双击它会显示三个选项：
+
+- **是：保留数据并卸载**：删除程序文件和指向当前 `latest` 的桌面快捷方式，保留 `%LOCALAPPDATA%\\IkuyoPet` 中的设置、日志、数据库和备份；
+- **否：删除数据并卸载**：在上面的基础上删除本地应用数据；
+- **取消**：不做任何修改。
+
+卸载器只接受包含 `IkuyoPet.exe` 与 `build-info.json` 的发布目录，不会删除源码、`local-assets/`、`local-skins/` 或其他版本目录。若桌宠仍在运行，先退出桌宠再重试。
+
 ## 项目结构
 
 ```text
@@ -154,6 +165,7 @@ src/
   IkuyoPet.App/             WPF 主程序、主窗口、规则、日志、诊断和托盘
   IkuyoPet.Core/            提醒状态机、工作统计、气泡和诊断领域逻辑
   IkuyoPet.Infrastructure/ SQLite、Windows API、通知、备份、发布资源
+  IkuyoPet.Uninstaller/   发布目录安全校验与可选数据清理
   IkuyoPet.Pet/             透明桌宠窗口、拖动、锚点和气泡合成
 tests/
   IkuyoPet.Core.Tests/
@@ -222,7 +234,6 @@ local-skins/                本机私有皮肤，Git 忽略
 - 完整的应用环境、资源哈希和数据库健康探针卡片；
 - 诊断信息脱敏导出与本地滚动日志；
 - 系统睡眠、系统时间变化、跨午夜和时区切换的长期耐久测试；
-- 发布门禁、快捷方式冒烟测试、安装 / 卸载流程；
 - 无障碍键盘导航和屏幕阅读器回归；
 - 三主题 × 短 / 中 / 长文本 × 100% / 125% / 150% DPI 的自动视觉回归；
 - 更完整的自有素材来源和许可证清单。
@@ -291,4 +302,3 @@ local-skins/                本机私有皮肤，Git 忽略
 ## 免责声明
 
 Ikuyo Pet 用于帮助用户执行自己设定的日常提醒和记录工作节奏。软件默认参数不是医疗建议，软件的提醒也不能替代医生、职业治疗师或其他专业人员的意见。请根据个人情况调整规则，发现不适时停止使用并寻求专业帮助。
-

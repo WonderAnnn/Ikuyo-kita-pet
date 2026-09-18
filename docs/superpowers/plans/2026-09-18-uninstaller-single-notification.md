@@ -275,7 +275,7 @@ public void DeleteDataPlanTargetsOnlyLocalAppDataDirectory()
 
 - [ ] **步骤 1：创建项目文件**
 
-项目设置固定为：`TargetFramework=net10.0-windows10.0.19041.0`、`OutputType=WinExe`、`UseWPF=true`、`AssemblyName=IkuyoPet.Uninstaller`、`ApplicationIcon=..\..\assets\branding\icon\icon256.ico`、`SelfContained=true`。
+项目设置固定为：`TargetFramework=net10.0-windows10.0.19041.0`、`OutputType=WinExe`、`UseWPF=true`、`AssemblyName=IkuyoPet.Uninstaller`、`ApplicationIcon=..\..\assets\branding\icon\icon256.ico`。`SelfContained` 不写入项目属性，以便测试项目可引用；发布命令显式传入 `--self-contained true`。
 
 - [ ] **步骤 2：实现可测试的数据模型**
 

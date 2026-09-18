@@ -18,7 +18,9 @@ $token = [Guid]::NewGuid().ToString('N')
 $staging = Join-Path $publishRoot "latest-staging-$token"
 $backup = Join-Path $publishRoot "latest-backup-$token"
 $latest = Join-Path $publishRoot 'latest'
+$solution = Join-Path $projectRootPath 'IkuyoPet.sln'
 $project = Join-Path $projectRootPath 'src\IkuyoPet.App\IkuyoPet.App.csproj'
+$uninstallerProject = Join-Path $projectRootPath 'src\IkuyoPet.Uninstaller\IkuyoPet.Uninstaller.csproj'
 $assetRoot = Join-Path $projectRootPath 'assets'
 
 function Update-DesktopShortcut {
@@ -50,12 +52,21 @@ $version = [string]$projectXml.Project.PropertyGroup.Version
 if ([string]::IsNullOrWhiteSpace($version)) { throw 'App project Version is missing.' }
 
 try {
+    & $DotnetPath restore $solution --runtime win-x64 --nologo
+    if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed with exit code $LASTEXITCODE" }
+
     & $DotnetPath publish $project --configuration Release --runtime win-x64 --self-contained true --no-restore --output $staging -p:IncludeLocalOverrides=false
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
 
+    & $DotnetPath publish $uninstallerProject --configuration Release --runtime win-x64 --self-contained true --no-restore --output $staging
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish uninstaller failed with exit code $LASTEXITCODE" }
+
     $appExe = Join-Path $staging 'IkuyoPet.exe'
     if (-not (Test-Path -LiteralPath $appExe -PathType Leaf)) { throw 'Published executable is missing.' }
+    $uninstallerExe = Join-Path $staging 'IkuyoPet.Uninstaller.exe'
+    if (-not (Test-Path -LiteralPath $uninstallerExe -PathType Leaf)) { throw 'Published uninstaller is missing.' }
     $fileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($appExe).FileVersion
+    $uninstallerFileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($uninstallerExe).FileVersion
     if (-not $fileVersion.StartsWith($version, [StringComparison]::Ordinal)) {
         throw "Published version $fileVersion does not match project version $version."
     }
@@ -98,6 +109,11 @@ try {
         buildTimeUtc = [DateTimeOffset]::UtcNow.ToString('O')
         resourceCount = $resourceHashes.Count
         resources = $resourceHashes
+        uninstaller = [ordered]@{
+            file = 'IkuyoPet.Uninstaller.exe'
+            fileVersion = $uninstallerFileVersion
+            sha256 = (Get-FileHash -LiteralPath $uninstallerExe -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
     }
     $buildInfo | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $staging 'build-info.json') -Encoding utf8
 
