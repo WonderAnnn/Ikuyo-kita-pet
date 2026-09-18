@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\IkuyoPet.App\IkuyoPet.App.csproj" />
+    <ProjectReference Include="..\..\src\IkuyoPet.Uninstaller\IkuyoPet.Uninstaller.csproj" />
     <ProjectReference Include="..\..\src\IkuyoPet.Core\IkuyoPet.Core.csproj" />
     <ProjectReference Include="..\..\src\IkuyoPet.Infrastructure\IkuyoPet.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\IkuyoPet.Pet\IkuyoPet.Pet.csproj" />

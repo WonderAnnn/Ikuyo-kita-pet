@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>IkuyoPet.Uninstaller</RootNamespace>
+    <AssemblyName>IkuyoPet.Uninstaller</AssemblyName>
+    <Version>0.1.4</Version>
+    <AssemblyVersion>0.1.4.0</AssemblyVersion>
+    <FileVersion>0.1.4.0</FileVersion>
+    <ApplicationIcon>..\..\assets\branding\icon\icon256.ico</ApplicationIcon>
+  </PropertyGroup>
+</Project>
