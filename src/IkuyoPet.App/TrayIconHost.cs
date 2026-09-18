@@ -59,6 +59,12 @@ public sealed class TrayIconHost : IDisposable
         taskbarIcon.ShowNotification(title, message, H.NotifyIcon.Core.NotificationIcon.Info);
     }
 
+    public void ClearNotifications()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        taskbarIcon.ClearNotifications();
+    }
+
     public void Invoke(TrayCommand command)
     {
         ObjectDisposedException.ThrowIf(disposed, this);

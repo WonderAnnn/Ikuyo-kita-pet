@@ -134,7 +134,9 @@ public partial class App : Application
                         cancellationToken)),
                 request => trayIconHost?.ShowNotification(
                     request.Title,
-                    $"{request.Message}{Environment.NewLine}{Environment.NewLine}请打开 Ikuyo Pet 处理。"));
+                    $"{request.Message}{Environment.NewLine}{Environment.NewLine}请打开 Ikuyo Pet 处理。"),
+                () => trayIconHost?.ClearNotifications());
+            await notificationSink.ClearPendingAsync(CancellationToken.None);
             var notificationPresenter = new WindowsNotificationPresenter(notificationSink);
             var petPresenter = new PetReminderPresenter(petWindow);
             var router = new ReminderPresentationRouter(petPresenter, notificationPresenter);
