@@ -395,6 +395,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             liveWorkSeconds = 0;
         }
 
+        if (delta.IsPersisted)
+        {
+            liveWorkProcessName = null;
+            liveWorkSeconds = 0;
+            OnPropertyChanged(nameof(WorkDurationText));
+            OnPropertyChanged(nameof(TodayWorkDurationText));
+            OnPropertyChanged(nameof(TotalWorkDurationText));
+            OnPropertyChanged(nameof(WorkStatisticsTotalText));
+            OnPropertyChanged(nameof(WorkStatisticsRangeText));
+            OnPropertyChanged(nameof(TopApplicationStats));
+            RefreshTimeSensitiveDashboardText();
+            return;
+        }
+
         if (delta.ActiveSeconds <= 0 || string.IsNullOrWhiteSpace(delta.ProcessName))
         {
             liveWorkProcessName = null;

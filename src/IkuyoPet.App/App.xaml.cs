@@ -143,6 +143,8 @@ public partial class App : Application
             DateTimeOffset? pausedUntil = null;
             var rawActivityProbe = new ForegroundActivityProbe(viewModel.IsTrackedProcess);
             var activityProbe = new CachedActivityProbe(rawActivityProbe, TimeProvider.System);
+            var foregroundActivityChangeSource =
+                new WindowsForegroundActivityChangeSource(rawActivityProbe);
             var diagnosticsService = new StatusDiagnosticsService(
                 repository,
                 activityProbe,
@@ -191,7 +193,8 @@ public partial class App : Application
                     return pollingPolicy.GetWorkTrackingInterval(sample?.IsLocked ?? false, longIdle);
                 },
                 healthRegistry: runtimeHealth,
-                timeProvider: TimeProvider.System);
+                timeProvider: TimeProvider.System,
+                activityChangeSource: foregroundActivityChangeSource);
 
             viewModel.ManualReminderRequested += async request
             =>

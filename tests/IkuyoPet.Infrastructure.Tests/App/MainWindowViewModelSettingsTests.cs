@@ -46,6 +46,19 @@ public sealed class MainWindowViewModelSettingsTests
     }
 
     [Fact]
+    public async Task PersistedActiveWorkDeltaIsNotAddedToLiveWorkTwice()
+    {
+        var viewModel = new IkuyoPet.App.MainWindowViewModel(new EmptyDashboard());
+        var day = DateOnly.FromDateTime(DateTime.Now);
+        await viewModel.RefreshAsync(day, TestContext.Current.CancellationToken);
+
+        viewModel.ApplyActiveWorkDelta(
+            new ActiveWorkDelta(90, "WINWORD", DateTimeOffset.UtcNow, IsPersisted: true));
+
+        Assert.Equal("0小时0分钟", viewModel.WorkDurationText);
+    }
+
+    [Fact]
     public async Task NextReminderTextShowsEstimatedBreakFromActiveWorkRuntime()
     {
         var rule = ReminderRule.CreateDefaultActiveWork(Guid.NewGuid());

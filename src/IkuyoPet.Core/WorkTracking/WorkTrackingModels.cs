@@ -19,7 +19,8 @@ public sealed record ActivitySample(
 public sealed record ActiveWorkDelta(
     int ActiveSeconds,
     string? ProcessName,
-    DateTimeOffset ObservedAt);
+    DateTimeOffset ObservedAt,
+    bool IsPersisted = false);
 
 public sealed record WorkSession(
     Guid Id,

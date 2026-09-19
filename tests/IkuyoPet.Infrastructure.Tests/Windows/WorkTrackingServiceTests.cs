@@ -102,6 +102,47 @@ public sealed class WorkTrackingServiceTests
             {
                 Assert.Equal("Code", session.ProcessName);
                 Assert.Equal(5, session.ActiveSeconds);
+        });
+    }
+
+    [Fact]
+    public async Task ProcessesRapidForegroundSamplesAsSeparatePersistedTimeSlices()
+    {
+        var start = new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.FromHours(8));
+        var repository = new RecordingRepository();
+        var service = new WorkTrackingService(
+            new SequenceProbe(new ActivitySample("unused", false, false, TimeSpan.Zero, start)),
+            repository);
+
+        var first = await service.ObserveAsync(
+            new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start),
+            TestContext.Current.CancellationToken);
+        var second = await service.ObserveAsync(
+            new ActivitySample("Code", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(3)),
+            TestContext.Current.CancellationToken);
+        var third = await service.ObserveAsync(
+            new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(7)),
+            TestContext.Current.CancellationToken);
+        await service.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, first.ActiveSeconds);
+        Assert.Equal(3, second.ActiveSeconds);
+        Assert.Equal("pycharm64", second.ProcessName);
+        Assert.True(second.IsPersisted);
+        Assert.Equal(4, third.ActiveSeconds);
+        Assert.Equal("Code", third.ProcessName);
+        Assert.True(third.IsPersisted);
+        Assert.Collection(
+            repository.Sessions,
+            session =>
+            {
+                Assert.Equal("pycharm64", session.ProcessName);
+                Assert.Equal(3, session.ActiveSeconds);
+            },
+            session =>
+            {
+                Assert.Equal("Code", session.ProcessName);
+                Assert.Equal(4, session.ActiveSeconds);
             });
     }
 

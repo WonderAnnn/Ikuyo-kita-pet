@@ -39,8 +39,24 @@ public sealed class WorkTrackingService
     public async Task<ActiveWorkDelta> SampleOnceAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var current = _probe.Capture();
+        return await ObserveAsync(_probe.Capture(), cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<ActiveWorkDelta> ObserveAsync(
+        ActivitySample current,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        cancellationToken.ThrowIfCancellationRequested();
         var activeSeconds = 0;
+        var persisted = false;
+        string? activeProcessName = null;
+
+        if (_previous is { } previousSample && current.ObservedAt <= previousSample.ObservedAt)
+        {
+            return new ActiveWorkDelta(0, null, current.ObservedAt);
+        }
+
         LogSample(current, 0);
 
         if (_previous is { } previous && IsValidInterval(previous, current))
@@ -53,12 +69,16 @@ public sealed class WorkTrackingService
 
             var elapsed = current.ObservedAt - previous.ObservedAt;
             activeSeconds = (int)Math.Floor(elapsed.TotalSeconds);
+            activeProcessName = previous.AppName;
             _activeSeconds = checked(_activeSeconds + activeSeconds);
             LogSample(current, activeSeconds);
 
             if (!string.Equals(previous.AppName, current.AppName, StringComparison.OrdinalIgnoreCase))
             {
-                await FlushAsync(current.ObservedAt, "app-switched", cancellationToken);
+                persisted = await FlushAsync(
+                    current.ObservedAt,
+                    "app-switched",
+                    cancellationToken);
                 _sessionStartedAt = current.ObservedAt;
                 _processName = current.AppName;
             }
@@ -74,8 +94,9 @@ public sealed class WorkTrackingService
         _previous = current;
         return new ActiveWorkDelta(
             activeSeconds,
-            activeSeconds > 0 ? current.AppName : null,
-            current.ObservedAt);
+            activeSeconds > 0 ? activeProcessName : null,
+            current.ObservedAt,
+            persisted);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -169,16 +190,17 @@ public sealed class WorkTrackingService
         }
     }
 
-    private async Task FlushAsync(
+    private async Task<bool> FlushAsync(
         DateTimeOffset endedAt,
         string endReason,
         CancellationToken cancellationToken)
     {
         if (_sessionStartedAt is not { } startedAt || _processName is not { } processName)
         {
-            return;
+            return false;
         }
 
+        var persisted = false;
         if (_activeSeconds > 0)
         {
             await _repository.AppendWorkSessionAsync(
@@ -191,10 +213,12 @@ public sealed class WorkTrackingService
                     _activeSeconds,
                     endReason),
                 cancellationToken);
+            persisted = true;
         }
 
         _sessionStartedAt = null;
         _processName = null;
         _activeSeconds = 0;
+        return persisted;
     }
 }

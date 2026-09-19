@@ -10,6 +10,50 @@ namespace IkuyoPet.Infrastructure.Tests.Windows;
 public sealed class WorkTrackingLoopTests
 {
     [Fact]
+    public async Task ConsumesForegroundEventsWithoutWaitingForPollingInterval()
+    {
+        var start = new DateTimeOffset(2026, 9, 8, 10, 0, 0, TimeSpan.FromHours(8));
+        var repository = new RecordingRepository();
+        var probe = new SequenceProbe(
+            new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start));
+        var source = new TestForegroundActivityChangeSource();
+        var service = new WorkTrackingService(probe, repository);
+        var positiveDeltas = new List<ActiveWorkDelta>();
+        var received = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var loop = new WorkTrackingLoop(
+            service,
+            (delta, _) =>
+            {
+                if (delta.ActiveSeconds > 0)
+                {
+                    positiveDeltas.Add(delta);
+                    if (positiveDeltas.Count == 2) received.TrySetResult(true);
+                }
+
+                return Task.CompletedTask;
+            },
+            TimeSpan.FromHours(1),
+            activityChangeSource: source);
+        using var cancellation = new CancellationTokenSource();
+        var running = loop.RunAsync(cancellation.Token);
+
+        await source.Started.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        source.Publish(new ActivitySample("Code", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(3)));
+        source.Publish(new ActivitySample("pycharm64", true, false, TimeSpan.FromMinutes(1), start.AddSeconds(7)));
+        await received.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        cancellation.Cancel();
+        await running;
+
+        Assert.Equal([3, 4], positiveDeltas.Select(item => item.ActiveSeconds));
+        Assert.Equal(["pycharm64", "Code"], repository.Sessions.Select(item => item.ProcessName));
+        Assert.Equal([3, 4], repository.Sessions.Select(item => item.ActiveSeconds));
+    }
+
+    [Fact]
     public async Task StopFlushesOnlySamplesAcceptedByExistingWorkTrackingService()
     {
         var start = new DateTimeOffset(2026, 9, 8, 10, 0, 0, TimeSpan.FromHours(8));
@@ -57,6 +101,22 @@ public sealed class WorkTrackingLoopTests
             CaptureCount++;
             return samples[Math.Min(index++, samples.Length - 1)];
         }
+    }
+
+    private sealed class TestForegroundActivityChangeSource : IForegroundActivityChangeSource
+    {
+        public event Action<ActivitySample>? SampleCaptured;
+
+        public TaskCompletionSource<bool> Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Start() => Started.TrySetResult(true);
+
+        public void Shutdown() { }
+
+        public void Publish(ActivitySample sample) => SampleCaptured?.Invoke(sample);
+
+        public void Dispose() { }
     }
 
     private sealed class RecordingRepository : IEventRepository
