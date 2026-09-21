@@ -1,6 +1,6 @@
 # 作者信息与 README 收口实现计划
 
-> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法跟踪进度。
+> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [x]`）语法跟踪进度。
 
 **目标：** 在 Ikuyo Pet 设置页底部和 README 中显示“成都信息工程大学 WonderAnn”，并补全 README 的 Windows 通知回退截图表格。
 
@@ -15,7 +15,7 @@
 **文件：**
 - 创建：`tests/IkuyoPet.Infrastructure.Tests/App/AuthorAttributionContractTests.cs`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 添加两个静态契约测试：
 
@@ -43,7 +43,7 @@ public void ReadmeShowsAuthorAndAllWindowsNotificationImages()
 
 `RepositoryRoot()` 沿用现有契约测试，从 `AppContext.BaseDirectory` 向上查找包含 `src/IkuyoPet.App` 的目录。
 
-- [ ] **步骤 2：运行测试确认红灯**
+- [x] **步骤 2：运行测试确认红灯**
 
 运行：
 
@@ -58,7 +58,7 @@ dotnet test tests/IkuyoPet.Infrastructure.Tests/IkuyoPet.Infrastructure.Tests.cs
 **文件：**
 - 修改：`src/IkuyoPet.App/Views/SettingsView.xaml`
 
-- [ ] **步骤 1：添加最少 XAML**
+- [x] **步骤 1：添加最少 XAML**
 
 在现有版本文本之后、`StackPanel` 结束之前加入：
 
@@ -71,7 +71,7 @@ dotnet test tests/IkuyoPet.Infrastructure.Tests/IkuyoPet.Infrastructure.Tests.cs
 
 不新增绑定、命令或导航项。
 
-- [ ] **步骤 2：运行契约测试确认通过**
+- [x] **步骤 2：运行契约测试确认通过**
 
 运行同任务 1 的 `dotnet test` 命令，预期作者信息测试不再因设置页失败。
 
@@ -80,7 +80,7 @@ dotnet test tests/IkuyoPet.Infrastructure.Tests/IkuyoPet.Infrastructure.Tests.cs
 **文件：**
 - 修改：`README.md`
 
-- [ ] **步骤 1：加入作者说明**
+- [x] **步骤 1：加入作者说明**
 
 在 README 免责声明之前加入“作者与项目”小节，包含：
 
@@ -92,7 +92,7 @@ dotnet test tests/IkuyoPet.Infrastructure.Tests/IkuyoPet.Infrastructure.Tests.cs
 Ikuyo Pet 是个人离线桌宠与健康提醒项目；喜多郁代相关内容属于非官方同人创作，与原作版权方无关联。
 ```
 
-- [ ] **步骤 2：补全 Windows 通知回退表格**
+- [x] **步骤 2：补全 Windows 通知回退表格**
 
 在现有 `#### Windows 通知回退` 说明下使用 3 行 HTML 表格展示：
 
@@ -110,7 +110,7 @@ Ikuyo Pet 是个人离线桌宠与健康提醒项目；喜多郁代相关内容�
 
 ### 任务 4：完整验证、提交并推送
 
-- [ ] **步骤 1：运行契约测试**
+- [x] **步骤 1：运行契约测试**
 
 运行：
 
@@ -120,7 +120,7 @@ dotnet test tests/IkuyoPet.Infrastructure.Tests/IkuyoPet.Infrastructure.Tests.cs
 
 预期：全部测试通过。
 
-- [ ] **步骤 2：运行解决方案构建**
+- [x] **步骤 2：运行解决方案构建**
 
 运行：
 
@@ -130,7 +130,7 @@ dotnet build IkuyoPet.sln --no-restore
 
 预期：退出码为 0。
 
-- [ ] **步骤 3：检查文档和工作区**
+- [x] **步骤 3：检查文档和工作区**
 
 运行：
 
@@ -141,7 +141,7 @@ git status --short
 
 同时确认 README 中 3 张通知图片的路径均存在。
 
-- [ ] **步骤 4：提交并推送**
+- [x] **步骤 4：提交并推送**
 
 ```powershell
 git add README.md src/IkuyoPet.App/Views/SettingsView.xaml tests/IkuyoPet.Infrastructure.Tests/App/AuthorAttributionContractTests.cs

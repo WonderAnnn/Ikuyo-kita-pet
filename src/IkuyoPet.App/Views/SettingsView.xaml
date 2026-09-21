@@ -182,6 +182,10 @@
 
             <TextBlock Margin="0,4,0,4" Foreground="#FF68778D" Text="{Binding SettingsStatus}" TextWrapping="Wrap"/>
             <TextBlock Margin="0,4,0,16" Foreground="#FF9AA6B8" Text="{Binding VersionText}"/>
+            <TextBlock Margin="0,0,0,20"
+                       Foreground="#FF9AA6B8"
+                       FontSize="12"
+                       Text="作者：成都信息工程大学 WonderAnn"/>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
